@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Literal
 
 import pandas as pd
 
-from tools.schemas import (
+from .schemas import (
     AgentSessionState,
     ArtifactManifest,
     CategoricalStats,
@@ -56,7 +56,13 @@ def df_to_parquet_bytes(df: pd.DataFrame) -> bytes:
 
 def parquet_bytes_to_df(data: bytes) -> pd.DataFrame:
     """Deserialize Parquet bytes back to a DataFrame."""
-    return pd.read_parquet(io.BytesIO(data), engine="pyarrow")
+    df = pd.read_parquet(io.BytesIO(data), engine="pyarrow")
+    # pandas 2.x with pyarrow may return StringDtype instead of object for string
+    # columns; normalize to object so downstream tools work consistently.
+    string_cols = [c for c in df.columns if isinstance(df[c].dtype, pd.StringDtype)]
+    if string_cols:
+        df[string_cols] = df[string_cols].astype(object)
+    return df
 
 
 def compute_checksum(df: pd.DataFrame) -> str:
@@ -192,7 +198,7 @@ def _infer_column_type(series: pd.Series) -> InferredDataType:
     non_null = series.dropna().astype(str)
     if len(non_null) > 0:
         try:
-            pd.to_datetime(non_null.iloc[:min(50, len(non_null))], infer_datetime_format=True)
+            pd.to_datetime(non_null.iloc[:min(50, len(non_null))], format="mixed")
             return InferredDataType.datetime
         except Exception:
             pass
@@ -238,7 +244,7 @@ def _build_categorical_stats(series: pd.Series) -> CategoricalStats:
 
 def _build_datetime_stats(series: pd.Series) -> DatetimeStats | None:
     try:
-        parsed = pd.to_datetime(series.dropna(), infer_datetime_format=True, errors="coerce")
+        parsed = pd.to_datetime(series.dropna(), errors="coerce", format="mixed")
         parsed = parsed.dropna()
         if parsed.empty:
             return None

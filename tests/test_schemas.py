@@ -191,8 +191,8 @@ class TestTaskPlanModels:
 
     def test_dataset_loader_config_secondary(self):
         cfg = DatasetLoaderConfig(
-            source_type="kaggle",
-            dataset_identifier="user/dataset",
+            source_type="local",
+            dataset_identifier="datasets/titanic/train.csv",
             is_secondary=True,
             secondary_name="extra",
         )

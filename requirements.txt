@@ -1,0 +1,21 @@
+# Core ADK runtime
+google-adk>=0.5.0
+
+# Data handling
+pandas>=2.2.0
+pyarrow>=15.0.0       # required for parquet serialization
+openpyxl>=3.1.0       # Excel (.xlsx) support
+xlrd>=2.0.0           # Excel (.xls) support
+
+# Optional: fuzzy deduplication
+rapidfuzz>=3.6.0
+
+# Environment & configuration
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# Pydantic v2 (schemas layer)
+pydantic>=2.11.0

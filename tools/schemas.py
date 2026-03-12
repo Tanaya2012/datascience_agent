@@ -144,8 +144,8 @@ class ArtifactManifest(BaseModel):
 
 class DatasetLoaderConfig(BaseModel):
     task_type: Literal[TaskType.dataset_loader] = TaskType.dataset_loader
-    source_type: Literal["local", "kaggle"]
-    dataset_identifier: str             # file path or kaggle slug
+    source_type: Literal["local"]
+    dataset_identifier: str             # local file path
     sheet_name: str | None = None
     is_secondary: bool = False
     secondary_name: str | None = None   # key in AgentSessionState.secondary_datasets
