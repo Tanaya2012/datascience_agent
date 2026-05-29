@@ -1,0 +1,50 @@
+# Environment & secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Data — raw competition files and generated outputs
+data/
+
+# Runtime artifact storage (ADK filesystem fallback)
+artifacts/
+
+# Session persistence
+sessions/
+
+# Generated outputs
+*.parquet
+cleaning_logs.json
+quality_report.md
+
+# Python build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Claude contexts
+.context/
+CLAUDE.md
