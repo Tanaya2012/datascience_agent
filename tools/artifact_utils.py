@@ -15,6 +15,7 @@ import hashlib
 import io
 import json
 import math
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -185,6 +186,25 @@ _HIGH_CARDINALITY_THRESHOLD = 0.9      # unique_pct fraction
 _CONSTANT_THRESHOLD = 1               # unique_count
 
 
+# A value made only of digits (optionally signed/decimal) is an ID / zip / count,
+# not a date — even though pandas will happily coerce "94105" to a timestamp.
+_PURE_NUMERIC_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?$")
+
+
+def _looks_datetime_like(values: pd.Series) -> bool:
+    """
+    Guard against parsing numeric-looking columns (IDs, zip/postal codes) as dates.
+
+    Returns False when the majority of non-empty string values are purely numeric,
+    so the caller skips the datetime-parse attempt for those columns.
+    """
+    vals = values.astype(str).str.strip()
+    vals = vals[vals != ""]
+    if len(vals) == 0:
+        return False
+    return bool(vals.str.match(_PURE_NUMERIC_RE).mean() < 0.5)
+
+
 def _infer_column_type(series: pd.Series) -> InferredDataType:
     """Heuristically infer a column's logical data type."""
     if pd.api.types.is_bool_dtype(series):
@@ -194,12 +214,15 @@ def _infer_column_type(series: pd.Series) -> InferredDataType:
     if pd.api.types.is_datetime64_any_dtype(series):
         return InferredDataType.datetime
 
-    # Try parsing as datetime for object columns
+    # Try parsing as datetime for object columns — but only when values actually
+    # look date-like, so pure-numeric IDs/zip codes aren't misread as timestamps.
     non_null = series.dropna().astype(str)
-    if len(non_null) > 0:
+    if len(non_null) > 0 and _looks_datetime_like(non_null):
         try:
-            pd.to_datetime(non_null.iloc[:min(50, len(non_null))], format="mixed")
-            return InferredDataType.datetime
+            sample = non_null.iloc[:min(50, len(non_null))]
+            parsed = pd.to_datetime(sample, format="mixed", errors="coerce")
+            if parsed.notna().mean() >= 0.8:
+                return InferredDataType.datetime
         except Exception:
             pass
 

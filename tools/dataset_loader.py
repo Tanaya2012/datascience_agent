@@ -10,7 +10,7 @@ MCP tool first, then pass the downloaded file path here.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
@@ -94,7 +94,7 @@ async def dataset_loader(
         shape=(rows, cols),
         checksum=checksum,
         schema_digest=schema_digest,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         input_artifact_key=None,
     )
 

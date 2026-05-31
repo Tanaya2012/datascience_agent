@@ -14,7 +14,7 @@ All inter-tool contracts use Pydantic v2. Structured in sections:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Any, Literal
 
@@ -298,7 +298,7 @@ class TransformationLog(BaseModel):
     log_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     step_name: str
     task_type: TaskType
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     rows_before: int
     rows_after: int
     cols_before: int

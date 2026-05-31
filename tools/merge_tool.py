@@ -7,7 +7,7 @@ is_secondary=True) and registered in AgentSessionState.secondary_datasets.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -138,7 +138,10 @@ async def merge_datasets(
     checksum_after = compute_checksum(df_merged)
     schema_digest = make_schema_digest(df_merged)
 
-    # Compute match statistics
+    # Compute match statistics.
+    # NOTE: match_rate is key-based, not row-based — it is the fraction of *distinct*
+    # left join-key values that have a counterpart in the right table, not the
+    # fraction of left rows that matched. With duplicate keys the two can differ.
     left_keys = set(df_left[join_key].dropna())
     right_keys = set(df_right[join_key].dropna())
     left_unmatched = len(left_keys - right_keys)
@@ -167,7 +170,7 @@ async def merge_datasets(
         shape=(rows_after, cols_after),
         checksum=checksum_after,
         schema_digest=schema_digest,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         input_artifact_key=dataset_artifact_key,
     )
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)

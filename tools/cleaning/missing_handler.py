@@ -8,7 +8,7 @@ Columns exceeding drop_threshold missing fraction are dropped entirely.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -149,7 +149,7 @@ async def handle_missing_values(
         shape=(rows_after, cols_after),
         checksum=checksum_after,
         schema_digest=schema_digest,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         input_artifact_key=dataset_artifact_key,
     )
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)

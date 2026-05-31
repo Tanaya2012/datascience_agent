@@ -8,7 +8,7 @@ strips currency symbols to float, and coerces numeric strings.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -207,7 +207,7 @@ async def standardize_formats(
         shape=(rows_after, cols_after),
         checksum=checksum_after,
         schema_digest=schema_digest,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         input_artifact_key=dataset_artifact_key,
     )
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)

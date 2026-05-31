@@ -7,7 +7,7 @@ Fuzzy matching is powered by rapidfuzz.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -125,7 +125,7 @@ async def deduplicate_dataset(
         shape=(rows_after, cols),
         checksum=checksum_after,
         schema_digest=schema_digest,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
         input_artifact_key=dataset_artifact_key,
     )
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)

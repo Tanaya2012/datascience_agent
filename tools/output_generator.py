@@ -8,7 +8,7 @@ and produces a quality_report.md — all as versioned artifacts.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -135,7 +135,7 @@ def _build_quality_report(
     include_summary_stats: bool,
 ) -> str:
     """Render a Markdown quality report for the cleaned dataset."""
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     rows, cols = df.shape
 
     lines: list[str] = [
