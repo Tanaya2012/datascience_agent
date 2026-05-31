@@ -10,7 +10,7 @@ wipes that directory before each test.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -57,7 +57,7 @@ def _state_with_secondary(secondary_key: str, name: str = "lookup") -> AgentSess
         shape=(3, 2),
         checksum="dummy",
         schema_digest="dummy",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     return state
 

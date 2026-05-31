@@ -1,5 +1,6 @@
 # Core ADK runtime
-google-adk>=0.5.0
+google-adk>=2.1.0
+mcp>=1.0.0           # Kaggle MCP toolset (StdioServerParameters); optional extra in ADK 2.x
 
 # Data handling
 pandas>=2.2.0

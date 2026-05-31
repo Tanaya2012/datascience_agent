@@ -7,11 +7,11 @@ the LLM through the multi-turn cleaning workflow.
 
 from __future__ import annotations
 
-import os
-
 from google.adk.agents import Agent  # type: ignore[import]
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams  # type: ignore[import]
 from mcp import StdioServerParameters  # type: ignore[import]
+
+from .configs.model_config import resolve_model
 
 from .tools.dataset_loader import dataset_loader
 from .tools.data_profiler import profile_dataset
@@ -75,7 +75,9 @@ pipeline of 8 tools plus the Kaggle MCP tools for dataset discovery and download
 | `generate_output` | Export cleaned CSV + audit logs + Markdown report |
 """
 
-MODEL = os.environ.get("AGENT_MODEL", "gemini-2.0-flash")
+# Model-agnostic: resolves to a Gemini model-name string or a LiteLlm instance
+# from AGENT_MODEL / LLM_PROVIDER env vars (see configs/model_config.py).
+MODEL = resolve_model()
 
 _kaggle_mcp = MCPToolset(
     connection_params=StdioConnectionParams(
