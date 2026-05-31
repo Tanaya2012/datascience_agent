@@ -1,0 +1,65 @@
+# Decision Log (ADR-lite)
+
+> Append-only. Newest at the bottom. One entry per decision:
+> date · decision · rationale · alternatives rejected.
+
+---
+
+### 2026-05-30 — D1: Scope = full data-science agent
+**Decision:** Expand scope from data-cleaning to a full data-science agent
+(clean + EDA + visualization + feature engineering + statistics + modeling + Q&A).
+**Rationale:** The repo is named "data science agent" but only cleaned; a fixed
+8-tool pipeline has too low a ceiling for real DS work.
+**Rejected:** staying cleaning-only; clean+explore-only (middle ground).
+
+### 2026-05-30 — D2: Architecture = hybrid, phased
+**Decision:** Keep the deterministic tools as a safe/auditable core; add a
+code-execution escape hatch for everything else; migrate gradually.
+**Rationale:** Deterministic tools give auditability + safety; code execution
+gives the high ceiling. Hybrid keeps both.
+**Rejected:** pure fixed-tool expansion (always limited); pure code-gen agent
+(loses audit trail).
+
+### 2026-05-30 — D3: Model-agnostic via ADK + LiteLLM
+**Decision:** Keep Google ADK; resolve the model from env via LiteLLM so any
+provider (Gemini/Claude/OpenAI/local) works. Strong default.
+**Rationale:** Don't hard-couple to `gemini-2.0-flash`; ADK already provides
+sessions/artifacts/tool-wrapping/eval.
+**Consequence:** ADK's `BuiltInCodeExecutor` is Gemini-only → cannot be used;
+code execution must be our own model-agnostic tool.
+**Rejected:** Gemini-only; switching frameworks entirely.
+
+### 2026-05-30 — D4: Sandbox = L2 (subprocess + dedicated worker venv), L4 later
+**Decision:** Code execution runs in a separate Python subprocess with
+rlimit/timeout caps and its own pinned worker venv, behind a swappable
+`CodeExecutor` interface. Worker venv rebuilt from a committed lockfile, never
+committed. L4 (container) is a scheduled later milestone (M6).
+**Rationale:** L2 stops accidents (crash/OOM/runaway), needs no Docker, works on
+the macOS dev box; the interface lets us climb to L4 without rewriting callers.
+**Rejected:** L0/L1 in-process (no real isolation); L4 from day one (needs Docker,
+adds latency); L3 seccomp/namespaces (Linux-only, not available on macOS dev).
+
+### 2026-05-30 — D5: Refactor pace = incremental, always runnable
+**Decision:** Add orchestrator + code kernel first (M1); restructure into full
+coordinator-plus-specialists in M2. Project stays runnable at every milestone.
+**Rationale:** Lower risk; never leaves the repo broken between milestones.
+**Rejected:** rebuilding the multi-agent skeleton up front (bigger first step,
+temporary breakage).
+
+### 2026-05-30 — D6: Commit `.context/`, keep `CLAUDE.md` local
+**Decision:** Remove `.context/` from `.gitignore` so the dev-continuity store
+(ARCHITECTURE/ROADMAP/STATUS/DECISIONS) is version-controlled and portable across
+machines. `CLAUDE.md` stays gitignored (local-only).
+**Rationale:** The dev-continuity docs must survive a fresh clone; CLAUDE.md is
+treated as local scaffolding.
+**Rejected:** committing both; keeping both ignored (not portable).
+
+### 2026-05-31 — D7: Add committed `AGENTS.md` as the portable entry pointer
+**Decision:** Add a minimal, tool-agnostic `AGENTS.md` (committed) whose only job
+is to point any agent to `.context/` + state the per-session maintenance rule.
+Deliberately holds no volatile state (that lives in `.context/`).
+**Rationale:** `CLAUDE.md` is local-only (D6), so on a fresh clone nothing
+auto-directs a new session to `.context/`. `AGENTS.md` fills that gap portably.
+**Note:** discovery-on-read, not auto-injected like `CLAUDE.md`.
+**Rejected:** a detailed AGENTS.md (duplicates `.context/`, drifts); committing
+`CLAUDE.md` instead.
