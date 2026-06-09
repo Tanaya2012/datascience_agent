@@ -14,6 +14,7 @@ __pycache__/
 venv/
 .venv/
 env/
+.worker-venv/        # code-execution worker venv — rebuilt from requirements-worker.txt
 
 # Jupyter
 .ipynb_checkpoints/
