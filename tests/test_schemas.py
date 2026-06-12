@@ -123,7 +123,8 @@ class TestEnums:
     def test_task_type_values(self):
         assert TaskType.dataset_loader == "dataset_loader"
         assert TaskType.generate_output == "generate_output"
-        assert len(TaskType) == 8
+        assert TaskType.run_python == "run_python"
+        assert len(TaskType) == 9  # 8 cleaning tools + run_python (M1)
 
     def test_pipeline_status_values(self):
         assert set(PipelineStatus) == {

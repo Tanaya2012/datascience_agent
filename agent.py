@@ -21,6 +21,7 @@ from .tools.cleaning.deduplicator import deduplicate_dataset
 from .tools.merge_tool import merge_datasets
 from .tools.validator import validate_dataset
 from .tools.output_generator import generate_output
+from .tools.code_exec.run_python import run_python
 
 _SYSTEM_INSTRUCTION = """
 You are an expert data-cleaning assistant. Your job is to help users clean and
@@ -45,6 +46,20 @@ pipeline of 8 tools plus the Kaggle MCP tools for dataset discovery and download
    is below 70, explain the remaining issues and ask the user whether to fix them.
 6. **Generate output** — Run `generate_output` to produce the cleaned CSV,
    cleaning_logs.json, and quality_report.md.
+
+## The run_python escape hatch
+
+For anything the dedicated tools don't cover — deriving columns, filtering,
+group-by/pivot/reshape, ad-hoc analysis, custom plots — use `run_python`.
+- The current dataset is preloaded as a pandas DataFrame named `df` (pandas as `pd`).
+  numpy, scipy, scikit-learn, matplotlib (Agg), and statsmodels are available.
+- `print(...)` what you want to see; the last expression is echoed too.
+- Variables persist across calls within the session, so build analysis up step by step.
+- **Set `commit=True` only when you intend to change the dataset** (e.g. a real
+  transformation/feature) — this saves `df` as a new versioned dataset with an
+  audit log and makes it current. Leave `commit=False` for read-only exploration.
+- Prefer a dedicated deterministic tool when one fits; reach for `run_python` for
+  the long tail. If code errors, read the returned traceback and fix it.
 
 ## Important rules
 
@@ -73,6 +88,7 @@ pipeline of 8 tools plus the Kaggle MCP tools for dataset discovery and download
 | `merge_datasets` | Join primary ↔ secondary on a shared key |
 | `validate_dataset` | Quality score 0–100 + issue list |
 | `generate_output` | Export cleaned CSV + audit logs + Markdown report |
+| `run_python` | Run Python on `df` for anything tools don't cover (commit=True to persist) |
 """
 
 # Model-agnostic: resolves to a Gemini model-name string or a LiteLlm instance
@@ -90,11 +106,12 @@ _kaggle_mcp = MCPToolset(
 )
 
 root_agent = Agent(
-    name="data_cleaning_agent",
+    name="data_science_agent",
     model=MODEL,
     description=(
-        "An interactive data-cleaning assistant that loads, profiles, cleans, "
-        "validates, and exports tabular datasets with full audit trails."
+        "An interactive data-science assistant that loads, profiles, cleans, "
+        "transforms, analyzes, and exports tabular datasets — using deterministic "
+        "tools plus a Python code-execution escape hatch, with a full audit trail."
     ),
     instruction=_SYSTEM_INSTRUCTION,
     tools=[
@@ -107,5 +124,6 @@ root_agent = Agent(
         merge_datasets,
         validate_dataset,
         generate_output,
+        run_python,
     ],
 )

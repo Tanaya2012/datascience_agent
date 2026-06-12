@@ -38,6 +38,7 @@ class TaskType(str, Enum):
     merge_datasets = "merge_datasets"
     validate_dataset = "validate_dataset"
     generate_output = "generate_output"
+    run_python = "run_python"        # code-execution escape hatch (M1)
 
 
 class PipelineStatus(str, Enum):
@@ -384,6 +385,18 @@ class OutputGeneratorResult(BaseToolResult):
     csv_artifact_key: str | None = None
     log_artifact_key: str | None = None
     report_artifact_key: str | None = None
+
+
+class CodeExecResult(BaseToolResult):
+    """Result of the run_python code-execution escape hatch."""
+    stdout: str = ""                         # captured print() output (truncated)
+    result_repr: str | None = None          # repr of the cell's last expression, if any
+    error_type: str | None = None           # exception class name, if the code raised
+    traceback: str | None = None            # full traceback text (fed back for self-correction)
+    timed_out: bool = False
+    committed: bool = False                  # whether df was checkpointed to a new version
+    plot_artifact_keys: list[str] = []       # any matplotlib figures saved as artifacts
+    available_packages: list[str] = []       # advertised once (first call) to aid the model
 
 
 # ---------------------------------------------------------------------------

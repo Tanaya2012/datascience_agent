@@ -1,0 +1,15 @@
+# Dependencies for the code-execution WORKER venv (.worker-venv), kept separate
+# from the agent runtime (requirements.txt) so the two never conflict.
+#
+# This file is the committed declaration of the sandbox environment — the venv
+# itself is gitignored and rebuilt from here via scripts/bootstrap_worker.sh.
+# The list also doubles as the source for the "available libraries" advertised
+# to the model in the run_python tool description.
+
+pandas>=2.2.0
+numpy>=1.26.0
+pyarrow>=15.0.0        # parquet handoff of the dataframe across the process boundary
+scipy>=1.12.0
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+statsmodels>=0.14.0

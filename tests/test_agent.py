@@ -58,9 +58,10 @@ class TestAgentToolRegistration:
 
         assert _kaggle_mcp in root_agent.tools
 
-    def test_agent_has_eight_python_tools(self):
+    def test_agent_has_nine_python_tools(self):
         from datascience_agent.agent import root_agent
         from google.adk.tools.mcp_tool import MCPToolset
 
+        # 8 cleaning tools + run_python (M1 code-execution escape hatch).
         python_tools = [t for t in root_agent.tools if not isinstance(t, MCPToolset)]
-        assert len(python_tools) == 8
+        assert len(python_tools) == 9
