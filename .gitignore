@@ -1,6 +1,8 @@
 # Environment & secrets
 .env
 .env.*
+*.env
+.envrc
 
 # Python
 __pycache__/
@@ -14,7 +16,8 @@ __pycache__/
 venv/
 .venv/
 env/
-.worker-venv/        # code-execution worker venv — rebuilt from requirements-worker.txt
+# code-execution worker venv — rebuilt from requirements-worker.txt
+.worker-venv/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -29,11 +32,17 @@ env/
 # Data — raw competition files and generated outputs
 data/
 
-# Runtime artifact storage (ADK filesystem fallback)
+# Runtime artifact storage (our ADK filesystem fallback)
 artifacts/
+
+# ADK runtime working dir (local artifact store + session.db from `adk run`/`adk web`)
+.adk/
 
 # Session persistence
 sessions/
+
+# Logs
+*.log
 
 # Generated outputs
 *.parquet
