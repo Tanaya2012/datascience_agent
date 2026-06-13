@@ -1,3 +1,8 @@
+> **Historical / superseded.** This is the original cleaning-only design vision.
+> The project has since been expanded into a full **data-science agent**
+> (agent name: `data_science_agent`). For the current design see
+> `.context/ARCHITECTURE.md`; this file is kept for context only.
+
 # 📊 **Interactive Data Cleaning Agent**
 
 ## 🎯 **What It Is**

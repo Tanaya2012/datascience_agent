@@ -22,14 +22,15 @@ Low risk, no behavior change.
 **Acceptance:** met — 192 tests green. (`adk run` smoke-test with a non-Gemini model still optional.)
 **Carryover:** `MCPToolset` → `McpToolset` deprecation warning (benign; revisit in M2 agent rewrite).
 
-## M1 — Code-execution kernel (keystone)
-Orchestrator still single-agent; add the escape hatch.
-- [ ] `requirements-worker.txt` + `scripts/bootstrap_worker.*`; gitignore `.worker-venv/`
-- [ ] `tools/code_exec/executor.py`: abstract `CodeExecutor` + `SubprocessKernelExecutor` (L2)
-- [ ] `tools/code_exec/run_python.py`: hydrate `df`, exec, `commit` → artifact + log, return stdout/result/error/plots
-- [ ] Register `run_python` on the current agent
-- [ ] `tests/test_code_exec.py`: success, error-feedback, timeout, mem cap, state persistence, hydrate/commit round-trip, secret-isolation
-**Acceptance:** "add column margin = revenue - cost" executes + commits a new version with an audit log; bad import → traceback returned → agent self-corrects.
+## ✅ M1 — Code-execution kernel (keystone)  *(COMPLETE — 208 tests + LLM smoke green)*
+Orchestrator still single-agent; escape hatch added.
+- [x] `requirements-worker.txt` + `scripts/bootstrap_worker.sh`; gitignore `.worker-venv/`; venv bootstrapped (matplotlib/sklearn/scipy/statsmodels)
+- [x] `tools/code_exec/executor.py`: `CodeExecutor` ABC + `SubprocessKernelExecutor` (L2) + `worker.py` (persistent REPL, plot harvest, rlimits)
+- [x] `tools/code_exec/run_python.py`: hydrate `df` (re-hydrate on key change), exec, `commit`→artifact+log, returns stdout/result/error/plots; per-session kernel registry
+- [x] Registered `run_python` on the agent + instruction guidance
+- [x] `tests/test_code_exec.py` (16): success, traceback feedback, wall-clock timeout + recovery, state persistence, df hydrate/commit round-trip, secret isolation, plot harvest, tool commit/no-commit
+- [x] **Acceptance met:** LLM-driven `scripts/smoke_test_m1.py` → agent used `run_python` (commit=True for the transform, commit=False for inspection), `margin` column committed as a new audited version.
+**Notes:** secret isolation via env allowlist; macOS doesn't enforce RLIMIT_AS (wall-clock timeout is the reliable guard); kernel registry is per-session but single-process (multi-session keying = M2).
 
 ## M2 — Multi-agent skeleton
 - [ ] `sub_agents/`: data_steward, cleaning, analysis, feature_engineering, modeling, reporting

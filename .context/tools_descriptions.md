@@ -1,3 +1,7 @@
+> **Historical / superseded.** Original spec for the 8 cleaning tools (still the
+> deterministic core). It predates the `run_python` escape hatch and the
+> multi-agent design — see `.context/ARCHITECTURE.md` for the current picture.
+
 # 📘 Tools Specification for Data-Cleaning Agent
 
 This document describes the high-level design of each tool used by the agent, their responsibilities, inputs, outputs and behavior. All tools are envisioned as **ADK Function Tools** (custom Python functions exposed to the agent) that the agent can call deterministically. ([Google GitHub][1])
