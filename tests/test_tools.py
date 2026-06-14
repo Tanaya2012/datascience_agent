@@ -844,6 +844,13 @@ class TestValidator:
 # ===========================================================================
 
 class TestOutputGenerator:
+    @pytest.fixture(autouse=True)
+    def _redirect_outputs(self, tmp_path, monkeypatch):
+        """Write user-facing exports under tmp so tests don't pollute ./outputs."""
+        monkeypatch.setattr(
+            "tools.output_generator._DEFAULT_OUTPUTS_ROOT", tmp_path / "outputs"
+        )
+
     async def test_output_success(self, csv_file, mock_ctx):
         from tools.dataset_loader import dataset_loader
         from tools.output_generator import generate_output
@@ -855,6 +862,36 @@ class TestOutputGenerator:
         assert result["csv_artifact_key"] is not None
         assert result["log_artifact_key"] is not None
         assert result["report_artifact_key"] is not None
+
+    async def test_writes_user_facing_files_to_disk(self, csv_file):
+        from tools.dataset_loader import dataset_loader
+        from tools.output_generator import generate_output
+        import json
+
+        load_r = await dataset_loader("local", str(csv_file))
+        result = await generate_output(load_r["output_artifact_key"])
+
+        # Real, openable files at the returned absolute paths.
+        for key in ("csv_path", "log_path", "report_path", "output_dir"):
+            assert result[key], f"{key} should be set"
+            assert Path(result[key]).exists()
+        assert Path(result["csv_path"]).name == "cleaned_dataset.csv"
+        df = pd.read_csv(result["csv_path"])
+        assert len(df) == 5
+        assert isinstance(json.loads(Path(result["log_path"]).read_text()), list)
+        assert "# Data Cleaning Quality Report" in Path(result["report_path"]).read_text()
+
+    async def test_custom_output_dir(self, csv_file, tmp_path):
+        from tools.dataset_loader import dataset_loader
+        from tools.output_generator import generate_output
+
+        target = tmp_path / "my_exports"
+        load_r = await dataset_loader("local", str(csv_file))
+        result = await generate_output(
+            load_r["output_artifact_key"], output_dir=str(target)
+        )
+        assert Path(result["csv_path"]) == (target / "cleaned_dataset.csv").resolve()
+        assert (target / "cleaned_dataset.csv").exists()
 
     async def test_csv_artifact_is_valid_csv(self, csv_file):
         from tools.dataset_loader import dataset_loader

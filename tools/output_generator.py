@@ -1,14 +1,17 @@
 """
 generate_output tool — final step in the cleaning pipeline.
 
-Exports the cleaned dataset as CSV, writes cleaning_logs.json,
-and produces a quality_report.md — all as versioned artifacts.
+Exports the cleaned dataset as CSV, writes cleaning_logs.json, and produces a
+quality_report.md. Each is (a) saved as a versioned ADK artifact (for lineage and
+the web UI download) AND (b) written to a real, user-facing folder on disk, whose
+absolute paths are returned so the agent can tell the user where the files are.
 """
 
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -36,25 +39,33 @@ from .schemas import (
 
 STEP_NAME = "generate_output"
 
+# User-facing outputs are written under <project>/outputs/ by default (gitignored).
+_DEFAULT_OUTPUTS_ROOT = Path(__file__).resolve().parent.parent / "outputs"
+
 
 async def generate_output(
     dataset_artifact_key: str,
     include_summary_stats: bool = True,
     output_format: str = "csv",
+    output_dir: Optional[str] = None,
     tool_context: Optional[ToolContext] = None,
 ) -> dict:
     """
-    Export the cleaned dataset and generate audit artifacts.
+    Export the cleaned dataset and generate audit artifacts, AND write the
+    deliverables to a real folder on disk.
 
     Args:
         dataset_artifact_key: Artifact key of the final cleaned dataset
         include_summary_stats: Include summary statistics in the quality report
         output_format: Output format — currently only "csv" is supported
+        output_dir: Where to write the files. If omitted, a timestamped folder
+            under <project>/outputs/ is used. Pass an absolute path to save
+            somewhere specific (e.g. a user-requested location).
         tool_context: Injected by ADK at runtime
 
     Returns:
-        Serialized OutputGeneratorResult dict with artifact keys for
-        the CSV, cleaning log JSON, and quality report markdown
+        Serialized OutputGeneratorResult dict with both the artifact keys and the
+        absolute filesystem paths of the written CSV / logs / report.
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
 
@@ -87,6 +98,21 @@ async def generate_output(
     report_bytes = report_md.encode("utf-8")
     await save_artifact(report_key, report_bytes, tool_context)
 
+    # ── 4. Write user-facing files to disk (real, openable paths) ─────────────
+    out_dir = _resolve_output_dir(output_dir, version)
+    csv_path = log_path = report_path = None
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = out_dir / "cleaned_dataset.csv"
+        log_path = out_dir / "cleaning_logs.json"
+        report_path = out_dir / "quality_report.md"
+        csv_path.write_bytes(csv_bytes)
+        log_path.write_bytes(log_bytes)
+        report_path.write_bytes(report_bytes)
+    except OSError as exc:
+        warnings.append(f"Could not write output files to {out_dir}: {exc}")
+        csv_path = log_path = report_path = None
+
     # Update state
     state.pipeline_status = PipelineStatus.completed
     state.quality_report_artifact_key = report_key
@@ -106,6 +132,7 @@ async def generate_output(
             "log_artifact_key": log_key,
             "report_artifact_key": report_key,
             "output_format": output_format,
+            "output_dir": str(out_dir) if csv_path else None,
         },
         warnings=warnings,
     )
@@ -126,7 +153,19 @@ async def generate_output(
         csv_artifact_key=csv_key,
         log_artifact_key=log_key,
         report_artifact_key=report_key,
+        output_dir=str(out_dir.resolve()) if csv_path else None,
+        csv_path=str(csv_path.resolve()) if csv_path else None,
+        log_path=str(log_path.resolve()) if log_path else None,
+        report_path=str(report_path.resolve()) if report_path else None,
     ).model_dump(mode="json")
+
+
+def _resolve_output_dir(output_dir: Optional[str], version: int) -> Path:
+    """Pick the folder to write deliverables into (explicit, or a timestamped default)."""
+    if output_dir:
+        return Path(output_dir).expanduser()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return _DEFAULT_OUTPUTS_ROOT / f"run_{stamp}_v{version}"
 
 
 def _build_quality_report(

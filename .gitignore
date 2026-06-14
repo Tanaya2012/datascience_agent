@@ -41,6 +41,9 @@ artifacts/
 # Session persistence
 sessions/
 
+# User-facing exports written by generate_output
+outputs/
+
 # Logs
 *.log
 

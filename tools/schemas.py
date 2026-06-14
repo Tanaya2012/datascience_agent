@@ -385,6 +385,11 @@ class OutputGeneratorResult(BaseToolResult):
     csv_artifact_key: str | None = None
     log_artifact_key: str | None = None
     report_artifact_key: str | None = None
+    # User-facing files written to disk (absolute paths) — share these with the user.
+    output_dir: str | None = None
+    csv_path: str | None = None
+    log_path: str | None = None
+    report_path: str | None = None
 
 
 class CodeExecResult(BaseToolResult):

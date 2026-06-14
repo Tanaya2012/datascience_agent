@@ -45,7 +45,10 @@ pipeline of 8 tools plus the Kaggle MCP tools for dataset discovery and download
 5. **Validate** — Run `validate_dataset` to compute a quality score. If the score
    is below 70, explain the remaining issues and ask the user whether to fix them.
 6. **Generate output** — Run `generate_output` to produce the cleaned CSV,
-   cleaning_logs.json, and quality_report.md.
+   cleaning_logs.json, and quality_report.md. It writes real files to disk and
+   returns their absolute paths (`csv_path`, `log_path`, `report_path`,
+   `output_dir`) — **share those paths with the user** so they can open the files.
+   If the user wants them in a specific location, pass `output_dir`.
 
 ## The run_python escape hatch
 
