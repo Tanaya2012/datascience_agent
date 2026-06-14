@@ -215,7 +215,7 @@ async def _save_plots(paths: list[str], tool_context: Optional[ToolContext]) -> 
         try:
             with open(path, "rb") as fh:
                 data = fh.read()
-            key = f"{STEP_NAME}/plot/{uuid.uuid4().hex[:8]}_{i}.png"
+            key = f"{STEP_NAME}__plot__{uuid.uuid4().hex[:8]}_{i}.png"
             await save_artifact(key, data, tool_context)
             keys.append(key)
         except Exception:

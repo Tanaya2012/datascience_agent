@@ -89,7 +89,7 @@ class TestDatasetLoader:
         assert result["success"] is True
         assert result["shape_after"]["rows"] == 5
         assert result["shape_after"]["cols"] == 4
-        assert result["output_artifact_key"] == "dataset_loader/v1/dataset"
+        assert result["output_artifact_key"] == "dataset_loader__v1__dataset"
         assert len(result["schema_summary"]) == 4
 
     async def test_artifact_persisted_to_disk(self, csv_file):
@@ -97,7 +97,7 @@ class TestDatasetLoader:
 
         await dataset_loader("local", str(csv_file))
 
-        path = ARTIFACTS_DIR / "dataset_loader/v1/dataset"
+        path = ARTIFACTS_DIR / "dataset_loader__v1__dataset"
         assert path.exists()
         df = parquet_bytes_to_df(path.read_bytes())
         assert list(df.columns) == ["Name", "Age", "Salary", "JoinDate"]
@@ -171,8 +171,8 @@ class TestDatasetLoader:
         r1 = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
         r2 = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
 
-        assert r1["output_artifact_key"] == "dataset_loader/v1/dataset"
-        assert r2["output_artifact_key"] == "dataset_loader/v2/dataset"
+        assert r1["output_artifact_key"] == "dataset_loader__v1__dataset"
+        assert r2["output_artifact_key"] == "dataset_loader__v2__dataset"
 
 
 # ===========================================================================
@@ -230,8 +230,8 @@ class TestDataProfiler:
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
 
-        assert result["profile_artifact_key"] == "profile_dataset/v1/profile"
-        assert (ARTIFACTS_DIR / "profile_dataset/v1/profile").exists()
+        assert result["profile_artifact_key"] == "profile_dataset__v1__profile"
+        assert (ARTIFACTS_DIR / "profile_dataset__v1__profile").exists()
 
     async def test_profile_missing_artifact_returns_failure(self):
         from tools.data_profiler import profile_dataset
@@ -817,7 +817,7 @@ class TestValidator:
         result = await validate_dataset(load_r["output_artifact_key"])
 
         assert result["success"] is True
-        report_path = ARTIFACTS_DIR / "validate_dataset/v1/report"
+        report_path = ARTIFACTS_DIR / "validate_dataset__v1__report"
         assert report_path.exists()
 
     async def test_missing_artifact_returns_failure(self):

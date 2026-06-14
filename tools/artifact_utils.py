@@ -92,9 +92,13 @@ def make_artifact_key(
     Build a canonical artifact key.
 
     Example: make_artifact_key("handle_missing_values", 2, "dataset")
-             → "handle_missing_values/v2/dataset"
+             → "handle_missing_values__v2__dataset"
+
+    Note: the separator is "__" (not "/") on purpose — artifact keys are used as
+    ADK artifact filenames, and ADK's artifact REST route treats the name as a
+    single path segment. A "/" in the name 404s the `adk web` artifact viewer.
     """
-    return f"{step_name}/v{version}/{artifact_type}"
+    return f"{step_name}__v{version}__{artifact_type}"
 
 
 def next_version(manifest: ArtifactManifest, step_name: str) -> int:
@@ -112,8 +116,8 @@ async def save_artifact(key: str, data: bytes, tool_context: "ToolContext") -> N
     Persist artifact bytes under *key*.
 
     Tries ADK's ArtifactService first; falls back to ARTIFACTS_DIR/<key>.
-    The key may contain path separators (e.g. "load/v1/dataset") — these
-    become subdirectories in the local fallback.
+    Keys are slash-free (e.g. "load__v1__dataset"), so the local fallback
+    writes a flat file per artifact.
     """
     try:
         import google.genai.types as genai_types  # type: ignore[import]

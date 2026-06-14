@@ -575,11 +575,11 @@ class TestArtifactUtilsSerialization:
 class TestArtifactKeyGeneration:
     def test_make_artifact_key(self):
         key = make_artifact_key("handle_missing_values", 2, "dataset")
-        assert key == "handle_missing_values/v2/dataset"
+        assert key == "handle_missing_values__v2__dataset"
 
     def test_make_artifact_key_profile(self):
         key = make_artifact_key("profile_dataset", 1, "profile")
-        assert key == "profile_dataset/v1/profile"
+        assert key == "profile_dataset__v1__profile"
 
     def test_next_version_empty_manifest(self):
         manifest = ArtifactManifest()
