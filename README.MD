@@ -20,18 +20,37 @@ This is an active rebuild from an earlier cleaning-only pipeline. **Start with
 `.context/`** — `STATUS.md`, `ROADMAP.md`, `DECISIONS.md`, `ARCHITECTURE.md` —
 for current state, milestones, rationale, and target design.
 
-## Quick start
+## Setup from scratch (fresh clone)
 
 ```bash
-pip install -r requirements.txt        # agent runtime deps
-# (later) bootstrap the code-execution worker venv — see scripts/
+# 1. Agent runtime env
+conda create -n dsagent python=3.12 -y
+conda run -n dsagent pip install -r requirements.txt
 
-# configure: copy/edit .env  →  GOOGLE_API_KEY (or other provider key),
-#            AGENT_MODEL, LLM_PROVIDER, KAGGLE_USERNAME/KAGGLE_KEY
+# 2. Code-execution worker venv (sandbox for run_python)
+WORKER_BASE_PYTHON=$(conda run -n dsagent which python) bash scripts/bootstrap_worker.sh
 
-adk run        # CLI    |    adk web    # browser UI
-pytest         # tests
+# 3. Config — copy the template and set your key(s)
+cp .env.example .env        # then edit: GOOGLE_API_KEY (or another provider's key)
+
+# 4. Verify — run tests FROM THE PROJECT DIR
+conda run -n dsagent python -m pytest -q
+
+# 5. Run — FROM THE PARENT DIR (/Users/tushar/interests)
+conda run -n dsagent adk web datascience_agent      # browser UI
+# or:  adk run datascience_agent                     # terminal
+# or:  python -m datascience_agent.scripts.chat      # simple REPL
 ```
+
+Generate a messy sample dataset to try it on:
+
+```bash
+conda run -n dsagent python -m datascience_agent.scripts.generate_dummy_data --secondary
+```
+
+> Two cwd gotchas baked into the commands above: **tests** run from the project
+> dir (the parent has sibling repos that break collection); **`adk`** runs from
+> the parent dir (it takes the agent folder as an argument).
 
 ## Status
 

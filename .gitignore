@@ -3,6 +3,8 @@
 .env.*
 *.env
 .envrc
+# committed template (negation must override the patterns above)
+!.env.example
 
 # Python
 __pycache__/

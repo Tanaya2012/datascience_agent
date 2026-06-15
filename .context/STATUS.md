@@ -59,6 +59,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   paths (`csv_path`/`log_path`/`report_path`/`output_dir`); agent shares them. `outputs/`
   gitignored. Verified via `scripts/smoke_test_output.py`. (Partial pre-M6 export work.)
 
+- **Fresh-clone setup documented:** `README.MD` "Setup from scratch" (conda env + worker
+  venv bootstrap + `.env` + verify + run) and a committed **`.env.example`** template
+  (`.gitignore` has `!.env.example` to override the `.env.*` ignore). Cross-machine resume
+  is now turnkey (modulo the machine-local `~/.claude` memory + plan file, whose content
+  lives in `.context/`).
+
 ## In progress
 - (nothing mid-flight) — M1 closed out.
 
