@@ -37,9 +37,19 @@ Orchestrator still single-agent; escape hatch added.
 - [ ] Orchestrator wraps specialists via `AgentTool`; routing + planning + reflection prompt
 - [ ] Move 8 tools onto specialists; share `run_python`
 - [ ] **MCP / connectors (owned by Data Steward):** fix Kaggle MCP (needs `uv`/`uvx`),
-      establish the reusable MCP-toolset pattern, and **behaviorally test** it (live + mocked).
+      establish the reusable MCP-toolset pattern, **register the toolset only when `uvx`
+      is present** (no per-turn error spam when absent), and **behaviorally test** it
+      (live + mocked).
       Other MCPs / SQL+DB connectors extend the same pattern (concrete ones may slip to M2+).
+- [ ] **Uploaded-file ingestion (owned by Data Steward):** an ingestion tool that turns an
+      `adk web` upload into a dataset artifact. Uploads arrive as an `inlineData` Part on the
+      message (not a path), so today `dataset_loader` (path-only) can't consume them. Add a
+      tool that reads the uploaded bytes (inline Part and/or ADK artifact) → saves a dataset
+      artifact → hands off to profiling. Test inline + artifact paths.
 - [ ] `DatabaseSessionService` (SQLite in `sessions/`); extend `AgentSessionState`
+- [ ] **Artifact-storage alignment (deferred from D8):** move off the `__`-key + manual `vN`
+      scheme toward ADK-native integer versioning and/or real extensions
+      (`.parquet`/`.json`/`.md`) so the `adk web` viewer can *preview* artifacts.
 - [ ] ADK eval framework: `*.evalset.json` + `AgentEvaluator` (routing + e2e clean pipeline)
 **Acceptance:** cleaning request routes orchestrator→cleaning specialist; restart resumes session; Kaggle search/download works with `uv` installed + creds.
 

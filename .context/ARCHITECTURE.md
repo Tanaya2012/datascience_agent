@@ -45,7 +45,7 @@ comes from routing **every** data mutation through a versioned artifact + log.
 - **Orchestrator** — converses, plans, routes to specialists, reflects on results.
 - **Specialists** — focused `LlmAgent`s, each with a small relevant toolset,
   exposed to the orchestrator via `AgentTool`:
-  - **Data Steward** — `dataset_loader`, Kaggle MCP, `profile_dataset` (+ future SQL/JSON).
+  - **Data Steward** — `dataset_loader`, Kaggle MCP, uploaded-file ingestion, `profile_dataset` (+ future SQL/JSON).
   - **Cleaning** — `handle_missing_values`, `standardize_formats`, `deduplicate_dataset`, `merge_datasets`, `validate_dataset`.
   - **Analysis/EDA** — deep profiling, correlations, statistical tests, visualization (+ `run_python`).
   - **Feature-Engineering** — encode/scale/bin/derive/datetime-features (+ `run_python`).
@@ -60,6 +60,10 @@ comes from routing **every** data mutation through a versioned artifact + log.
 - **Artifact + audit layer** — `tools/artifact_utils.py`: Parquet versions,
   MD5 checksums, schema digests, per-step manifest, `TransformationLog`.
   Dual storage (ADK ArtifactService primary, `artifacts/` local fallback).
+  Keys are slash-free (`step__vN__type`) so they work as ADK artifact filenames (D8).
+- **User-facing exports** — `generate_output` writes `cleaned_dataset.csv` /
+  `cleaning_logs.json` / `quality_report.md` to `<project>/outputs/` (or a chosen
+  `output_dir`) and returns absolute paths, in addition to saving them as artifacts.
 - **Resumable sessions** — `DatabaseSessionService` (SQLite under `sessions/`), M2+.
 
 ## Code-execution sandbox (the escape hatch)

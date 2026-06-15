@@ -63,3 +63,15 @@ auto-directs a new session to `.context/`. `AGENTS.md` fills that gap portably.
 **Note:** discovery-on-read, not auto-injected like `CLAUDE.md`.
 **Rejected:** a detailed AGENTS.md (duplicates `.context/`, drifts); committing
 `CLAUDE.md` instead.
+
+### 2026-06-14 — D8: Slash-free artifact keys (`__` separator)
+**Decision:** `make_artifact_key` now joins with `__` not `/` →
+`dataset_loader__v1__dataset`. Plot keys likewise.
+**Rationale:** Artifact keys are used as ADK artifact filenames. ADK's artifact
+REST route (`.../artifacts/{artifact_name}/versions/{id}`) treats the name as a
+single path segment, so a `/` in the key 404s the `adk web` artifact viewer (the
+tools themselves still succeeded — it was a display-fetch failure only). Keys are
+opaque everywhere (nothing parses them), so this was a 2-line change + test updates.
+**Deferred:** deeper alignment — use ADK-native integer versioning and/or real
+extensions (`.parquet`/`.json`/`.md`) so the web UI can *preview* artifacts — to M2.
+**Rejected:** suppressing the UI errors; per-extension keys now (bigger change).
