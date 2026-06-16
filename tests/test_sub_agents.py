@@ -20,11 +20,16 @@ from datascience_agent.sub_agents import (
 
 
 def _tool_names(agent) -> set[str]:
-    return {getattr(t, "__name__", None) or getattr(t, "name", "") for t in agent.tools}
+    # Only the plain function tools — toolsets (e.g. the optional Kaggle McpToolset,
+    # present only when uvx is installed) have no __name__ and are ignored here.
+    return {t.__name__ for t in agent.tools if hasattr(t, "__name__")}
 
 
 BUILDERS = {
-    "data_steward": (build_data_steward, {"dataset_loader", "profile_dataset"}),
+    "data_steward": (
+        build_data_steward,
+        {"dataset_loader", "ingest_uploaded_file", "profile_dataset"},
+    ),
     "cleaning_specialist": (
         build_cleaning_specialist,
         {

@@ -4,7 +4,7 @@
 > when resuming. Keep it short and current.
 
 **Last updated:** 2026-06-16
-**Current milestone:** M2a complete (multi-agent routing skeleton) → M2b (connectors + ingestion) next
+**Current milestone:** M2a + M2b complete → M2c (persistence + eval) next
 **Branch:** main
 
 ## How to run
@@ -79,29 +79,43 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   - `scripts/smoke_test_routing.py`: LLM-driven, verified orchestrator→data_steward delegation.
   - Removed empty unused `schemas/` dir (M0 carryover).
 
+- **M2b complete (connectors + ingestion — 236 tests green):**
+  - Installed `uv` 0.11.21 → `~/.local/bin/uvx` (PATH must include `~/.local/bin` for the
+    runtime to see it).
+  - `sub_agents/_mcp.py::maybe_kaggle_toolset()` — conditional Kaggle `McpToolset` (built only
+    when `shutil.which("uvx")`); reusable pattern for future MCP connectors. Data Steward
+    appends it only when present. `tests/test_mcp.py` (8) covers present/absent + wiring.
+  - `tools/ingestion.py::ingest_uploaded_file` — resolves uploaded bytes from an ADK artifact
+    (`load_artifact`) or an inline `user_content` Part; parses CSV/Excel/Parquet → versioned
+    dataset artifact (reuses `dataset_loader`'s registration). On Data Steward.
+    `tests/test_ingestion.py` (7) covers inline/artifact/parquet/secondary/error paths.
+  - **Live Kaggle still unverified:** no `~/.kaggle/kaggle.json` on this box. Construction +
+    conditional wiring are tested; a real search needs the user to add credentials.
+
 ## In progress
-- (nothing mid-flight) — M2a closed out.
+- (nothing mid-flight) — M2b closed out.
 
 ## Next
-- **M2b (connectors + ingestion):** install `uv`; conditional Kaggle `McpToolset` registration
-  on Data Steward (only when `uvx` present) + tests; `tools/ingestion.py` for `adk web` uploads.
-- **M2c (persistence + eval):** `google-adk[db]` + `DatabaseSessionService` (sqlite in
-  `sessions/`); `evals/*.evalset.json` + `AgentEvaluator`.
+- **M2c (persistence + eval):** add `google-adk[db]` (sqlalchemy) → `DatabaseSessionService`
+  (sqlite in `sessions/`) via `--session_service_uri` + a helper for script Runners +
+  persistence test; `evals/*.evalset.json` + `AgentEvaluator` (`pytest -m llm`); update
+  `CAPABILITIES.md`/`README.MD` (session-uri flag, ingestion, Kaggle-now-works).
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
   Runner on gemini-2.0-flash → called `dataset_loader` + `profile_dataset`, correct final
   answer. The conversational/tool-calling loop works end-to-end.
-- **Kaggle MCP is broken at runtime:** `uvx` not installed (`uv` absent), so `uvx kaggle-mcp`
-  can't start — agent logs errors but degrades gracefully. Kaggle search/download is
-  non-functional until `uv` is installed AND credentials are set. (To be fixed + tested in M2.)
+- ~~Kaggle MCP broken (`uv` absent)~~ — `uv` installed in M2b; toolset now registers
+  conditionally. Search/download still need Kaggle credentials to run live.
 - Env `dsagent` (conda) can run the suite — see "How to run" above. Earlier "can't run
   here" constraint is resolved.
 - ~~`MCPToolset` deprecated~~ — resolved in M2a: `agent.py` no longer imports it; Kaggle MCP
   moves to Data Steward (M2b) and will use `McpToolset`.
-- `adk web` "Upload local file" attaches the file as an `inlineData` Part to the message; our
-  `dataset_loader` is path-only, so uploads aren't usable yet. Ingestion tool scheduled in M2
-  (Data Steward). Workaround today: give the agent a local file path.
+- ~~`adk web` uploads unusable~~ — resolved in M2b: `ingest_uploaded_file` (Data Steward)
+  reads inline-Part / artifact uploads. Inline + artifact paths unit-tested; a real `adk web`
+  drag-drop round-trip is still worth a manual smoke once creds/UI are exercised.
+- **Kaggle live path** needs `~/.kaggle/kaggle.json` + `~/.local/bin` on PATH (for `uvx`).
+  Absent both, Data Steward simply omits the Kaggle tools (by design).
 - ~~`schemas/` empty dir~~ — removed in M2a. Real models live in `tools/schemas.py`.
 - `TaskConfig`/`PlannedTask` in `tools/schemas.py` is vestigial (unused by `agent.py`);
   planning will live in the orchestrator prompt for now.

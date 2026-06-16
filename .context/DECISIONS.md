@@ -94,3 +94,20 @@ wiring moves to Data Steward in M2b; `MCPToolset`→`McpToolset` carryover resol
 by dropping the import from `agent.py`.
 **Rejected:** all six specialists now (thin shells); `sub_agents=` transfer
 (orchestrator loses the reflect/route loop); keeping the monolith (low ceiling).
+
+### 2026-06-16 — D10: Conditional MCP registration + dual-source upload ingestion (M2b)
+**Decision:** (a) Register the Kaggle `McpToolset` **only when `shutil.which("uvx")`**
+is truthy, via `sub_agents/_mcp.py::maybe_kaggle_toolset()` (returns `None`
+otherwise); Data Steward appends it conditionally. (b) `ingest_uploaded_file`
+resolves uploaded bytes from **either** an ADK artifact (`load_artifact`) **or** an
+inline `tool_context.user_content` Part, then reuses `dataset_loader`'s
+save-version-and-log tail.
+**Rationale:** An MCP toolset whose `uvx` server can't start makes ADK log an
+error every turn; gating on `uvx` keeps the agent clean and importable on machines
+without `uv`, and is the reusable pattern for future connectors. Uploads arrive
+inline (not as a path or, reliably, an artifact) in ADK 2.1, but the artifact path
+exists too — supporting both is defensive and testable without a live web server.
+**Consequence:** Live Kaggle still gated on `~/.kaggle/kaggle.json` + `~/.local/bin`
+on PATH; everything else is unit-tested (mocked `which`, fake contexts).
+**Rejected:** always-register Kaggle (error spam); inline-only ingestion (misses
+the artifact path); a new bespoke result schema (reused `DatasetLoaderResult`).

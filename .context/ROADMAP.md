@@ -37,16 +37,15 @@ Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + in
 - [x] `sub_agents/`: data_steward, cleaning, analysis, reporting *(4 now; feature_engineering + modeling deferred to M4/M5 when they gain tools — D9)*
 - [x] Orchestrator wraps specialists via `AgentTool`; routing + planning + reflection prompt (`agent.py` rewritten as `LlmAgent` coordinator)
 - [x] Move 8 tools onto specialists; share `run_python` (analysis owns it; kernel keyed by session id, so shared)
-- [ ] **MCP / connectors (owned by Data Steward):** fix Kaggle MCP (needs `uv`/`uvx`),
-      establish the reusable MCP-toolset pattern, **register the toolset only when `uvx`
-      is present** (no per-turn error spam when absent), and **behaviorally test** it
-      (live + mocked).
-      Other MCPs / SQL+DB connectors extend the same pattern (concrete ones may slip to M2+).
-- [ ] **Uploaded-file ingestion (owned by Data Steward):** an ingestion tool that turns an
-      `adk web` upload into a dataset artifact. Uploads arrive as an `inlineData` Part on the
-      message (not a path), so today `dataset_loader` (path-only) can't consume them. Add a
-      tool that reads the uploaded bytes (inline Part and/or ADK artifact) → saves a dataset
-      artifact → hands off to profiling. Test inline + artifact paths.
+- [x] **MCP / connectors (owned by Data Steward):** `uv` installed; reusable pattern in
+      `sub_agents/_mcp.py::maybe_kaggle_toolset()` registers the Kaggle `McpToolset` **only
+      when `uvx` is present** (no error spam when absent); mocked behavioral tests in
+      `tests/test_mcp.py`. *Live* Kaggle search still needs `~/.kaggle/kaggle.json` (creds
+      absent on this box) — gated on the user adding credentials.
+- [x] **Uploaded-file ingestion (owned by Data Steward):** `tools/ingestion.py::
+      ingest_uploaded_file` resolves uploaded bytes from an ADK artifact *or* an inline
+      `user_content` Part → saves a versioned dataset artifact (mirrors `dataset_loader`).
+      `tests/test_ingestion.py` covers inline + artifact + parquet + secondary + error paths.
 - [ ] `DatabaseSessionService` (SQLite in `sessions/`); extend `AgentSessionState`
 - [ ] **Artifact-storage alignment (deferred from D8):** move off the `__`-key + manual `vN`
       scheme toward ADK-native integer versioning and/or real extensions

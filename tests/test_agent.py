@@ -12,8 +12,9 @@ from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
 
-def _tool_name(t) -> str:
-    return getattr(t, "__name__", None) or getattr(t, "name", type(t).__name__)
+def _function_tool_names(agent) -> set:
+    # Only plain function tools; toolsets (optional Kaggle McpToolset) are excluded.
+    return {t.__name__ for t in agent.tools if hasattr(t, "__name__")}
 
 
 class TestOrchestratorTopology:
@@ -63,11 +64,12 @@ class TestSpecialistTooling:
         return next(t.agent for t in root_agent.tools if t.agent.name == name)
 
     def test_data_steward_tools(self):
-        tools = {_tool_name(t) for t in self._specialist("data_steward").tools}
-        assert tools == {"dataset_loader", "profile_dataset"}
+        # Function tools are fixed; the Kaggle McpToolset is optional (uvx-gated).
+        tools = _function_tool_names(self._specialist("data_steward"))
+        assert tools == {"dataset_loader", "ingest_uploaded_file", "profile_dataset"}
 
     def test_cleaning_specialist_tools(self):
-        tools = {_tool_name(t) for t in self._specialist("cleaning_specialist").tools}
+        tools = _function_tool_names(self._specialist("cleaning_specialist"))
         assert tools == {
             "handle_missing_values",
             "standardize_formats",
@@ -77,9 +79,9 @@ class TestSpecialistTooling:
         }
 
     def test_analysis_specialist_tools(self):
-        tools = {_tool_name(t) for t in self._specialist("analysis_specialist").tools}
+        tools = _function_tool_names(self._specialist("analysis_specialist"))
         assert tools == {"profile_dataset", "run_python"}
 
     def test_reporting_specialist_tools(self):
-        tools = {_tool_name(t) for t in self._specialist("reporting_specialist").tools}
+        tools = _function_tool_names(self._specialist("reporting_specialist"))
         assert tools == {"generate_output"}
