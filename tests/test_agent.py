@@ -1,67 +1,85 @@
 """
-Tests for the root agent configuration, focusing on the Kaggle MCP toolset.
+Tests for the orchestrator agent topology (M2).
 
-These tests verify that the MCPToolset is correctly wired up with the right
-tool filter and subprocess command — without starting an actual MCP server.
+The root agent is now a coordinator that delegates to four specialist sub-agents
+via ``AgentTool`` — it holds no data tools directly. These tests verify the
+topology without starting any LLM or MCP server.
 """
 
 from __future__ import annotations
 
-import pytest
-from google.adk.tools.mcp_tool import MCPToolset
+from google.adk.agents import LlmAgent
+from google.adk.tools.agent_tool import AgentTool
 
 
-class TestKaggleMcpToolset:
-    """Verify _kaggle_mcp is configured correctly."""
-
-    def test_is_mcp_toolset_instance(self):
-        from datascience_agent.agent import _kaggle_mcp
-
-        assert isinstance(_kaggle_mcp, MCPToolset)
-
-    def test_tool_filter_contains_search_and_download(self):
-        from datascience_agent.agent import _kaggle_mcp
-
-        assert "search_kaggle_datasets" in _kaggle_mcp.tool_filter
-        assert "download_kaggle_dataset" in _kaggle_mcp.tool_filter
-
-    def test_tool_filter_no_extra_tools(self):
-        from datascience_agent.agent import _kaggle_mcp
-
-        assert len(_kaggle_mcp.tool_filter) == 2
-
-    def test_mcp_command_is_uvx(self):
-        from datascience_agent.agent import _kaggle_mcp
-
-        server_params = _kaggle_mcp._connection_params.server_params
-        assert server_params.command == "uvx"
-
-    def test_mcp_args_include_kaggle_mcp(self):
-        from datascience_agent.agent import _kaggle_mcp
-
-        server_params = _kaggle_mcp._connection_params.server_params
-        assert "kaggle-mcp" in server_params.args
-
-    def test_no_explicit_env_set(self):
-        # Auth is handled via ~/.kaggle/kaggle.json; no env override should be set
-        # so the subprocess inherits the full parent environment (including PATH).
-        from datascience_agent.agent import _kaggle_mcp
-
-        assert _kaggle_mcp._connection_params.server_params.env is None
+def _tool_name(t) -> str:
+    return getattr(t, "__name__", None) or getattr(t, "name", type(t).__name__)
 
 
-class TestAgentToolRegistration:
-    """Verify root_agent has the Kaggle MCPToolset in its tools list."""
+class TestOrchestratorTopology:
+    """root_agent wraps exactly the four specialists as AgentTools."""
 
-    def test_kaggle_mcp_in_agent_tools(self):
-        from datascience_agent.agent import root_agent, _kaggle_mcp
-
-        assert _kaggle_mcp in root_agent.tools
-
-    def test_agent_has_nine_python_tools(self):
+    def test_root_agent_name_unchanged(self):
         from datascience_agent.agent import root_agent
-        from google.adk.tools.mcp_tool import MCPToolset
 
-        # 8 cleaning tools + run_python (M1 code-execution escape hatch).
-        python_tools = [t for t in root_agent.tools if not isinstance(t, MCPToolset)]
-        assert len(python_tools) == 9
+        # Stable name keeps `adk run/web datascience_agent` discovery working.
+        assert root_agent.name == "data_science_agent"
+
+    def test_root_tools_are_all_agent_tools(self):
+        from datascience_agent.agent import root_agent
+
+        assert len(root_agent.tools) == 4
+        assert all(isinstance(t, AgentTool) for t in root_agent.tools)
+
+    def test_root_delegates_to_the_four_specialists(self):
+        from datascience_agent.agent import root_agent
+
+        names = {t.agent.name for t in root_agent.tools}
+        assert names == {
+            "data_steward",
+            "cleaning_specialist",
+            "analysis_specialist",
+            "reporting_specialist",
+        }
+
+    def test_root_holds_no_raw_data_tools(self):
+        from datascience_agent.agent import root_agent
+
+        # The orchestrator routes; it must not carry data tools itself.
+        assert not any(callable(t) and not isinstance(t, AgentTool) for t in root_agent.tools)
+
+    def test_root_has_nonempty_instruction(self):
+        from datascience_agent.agent import root_agent
+
+        assert isinstance(root_agent.instruction, str) and root_agent.instruction.strip()
+
+
+class TestSpecialistTooling:
+    """Each specialist owns its expected toolset (verified via the orchestrator)."""
+
+    def _specialist(self, name) -> LlmAgent:
+        from datascience_agent.agent import root_agent
+
+        return next(t.agent for t in root_agent.tools if t.agent.name == name)
+
+    def test_data_steward_tools(self):
+        tools = {_tool_name(t) for t in self._specialist("data_steward").tools}
+        assert tools == {"dataset_loader", "profile_dataset"}
+
+    def test_cleaning_specialist_tools(self):
+        tools = {_tool_name(t) for t in self._specialist("cleaning_specialist").tools}
+        assert tools == {
+            "handle_missing_values",
+            "standardize_formats",
+            "deduplicate_dataset",
+            "merge_datasets",
+            "validate_dataset",
+        }
+
+    def test_analysis_specialist_tools(self):
+        tools = {_tool_name(t) for t in self._specialist("analysis_specialist").tools}
+        assert tools == {"profile_dataset", "run_python"}
+
+    def test_reporting_specialist_tools(self):
+        tools = {_tool_name(t) for t in self._specialist("reporting_specialist").tools}
+        assert tools == {"generate_output"}

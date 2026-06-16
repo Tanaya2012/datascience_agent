@@ -75,3 +75,22 @@ opaque everywhere (nothing parses them), so this was a 2-line change + test upda
 **Deferred:** deeper alignment — use ADK-native integer versioning and/or real
 extensions (`.parquet`/`.json`/`.md`) so the web UI can *preview* artifacts — to M2.
 **Rejected:** suppressing the UI errors; per-extension keys now (bigger change).
+
+### 2026-06-16 — D9: M2 topology = orchestrator + 4 specialists via AgentTool
+**Decision:** Rewrite `agent.py` as an `LlmAgent` **orchestrator** that delegates to
+**four** specialist sub-agents — Data Steward, Cleaning, Analysis, Reporting —
+wrapped as `AgentTool`s (parent retains control). Specialists are built by
+`build_*` fns in `sub_agents/`, each model-agnostic via `resolve_model()` with a
+focused instruction + small toolset. Analysis owns `run_python`.
+**Rationale:** `AgentTool` keeps the orchestrator in control (vs. `sub_agents=`
+transfer/hand-off, which cedes the turn). Four specialists, not the six in
+ARCHITECTURE.md: Feature-Engineering and Modeling would be **`run_python`-only
+shells** today (their tools land in M4/M5), so creating them now adds
+near-duplicate agents with no distinct capability — defer them to when they earn
+their keep. The `run_python` kernel keys on `session.id`, so specialists sharing a
+session transparently share one live `df` — no kernel change needed.
+**Consequence:** `tests/test_agent.py` rewritten (topology, not MCP); Kaggle MCP
+wiring moves to Data Steward in M2b; `MCPToolset`→`McpToolset` carryover resolved
+by dropping the import from `agent.py`.
+**Rejected:** all six specialists now (thin shells); `sub_agents=` transfer
+(orchestrator loses the reflect/route loop); keeping the monolith (low ceiling).

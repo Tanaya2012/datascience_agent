@@ -32,10 +32,11 @@ Orchestrator still single-agent; escape hatch added.
 - [x] **Acceptance met:** LLM-driven `scripts/smoke_test_m1.py` → agent used `run_python` (commit=True for the transform, commit=False for inspection), `margin` column committed as a new audited version.
 **Notes:** secret isolation via env allowlist; macOS doesn't enforce RLIMIT_AS (wall-clock timeout is the reliable guard); kernel registry is per-session but single-process (multi-session keying = M2).
 
-## M2 — Multi-agent skeleton
-- [ ] `sub_agents/`: data_steward, cleaning, analysis, feature_engineering, modeling, reporting
-- [ ] Orchestrator wraps specialists via `AgentTool`; routing + planning + reflection prompt
-- [ ] Move 8 tools onto specialists; share `run_python`
+## M2 — Multi-agent skeleton  *(M2a done — 224 tests + routing smoke green)*
+Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + ingestion · **M2c** persistence + eval.
+- [x] `sub_agents/`: data_steward, cleaning, analysis, reporting *(4 now; feature_engineering + modeling deferred to M4/M5 when they gain tools — D9)*
+- [x] Orchestrator wraps specialists via `AgentTool`; routing + planning + reflection prompt (`agent.py` rewritten as `LlmAgent` coordinator)
+- [x] Move 8 tools onto specialists; share `run_python` (analysis owns it; kernel keyed by session id, so shared)
 - [ ] **MCP / connectors (owned by Data Steward):** fix Kaggle MCP (needs `uv`/`uvx`),
       establish the reusable MCP-toolset pattern, **register the toolset only when `uvx`
       is present** (no per-turn error spam when absent), and **behaviorally test** it

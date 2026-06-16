@@ -3,15 +3,17 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-14
-**Current milestone:** M1 complete (+ post-M1 polish) → M2 (multi-agent skeleton) next
+**Last updated:** 2026-06-16
+**Current milestone:** M2a complete (multi-agent routing skeleton) → M2b (connectors + ingestion) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **210 passed**.
+  Last run: **224 passed**.
+- LLM routing smoke (needs API key), from `/Users/tushar/interests`:
+  `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM smoke tests (need API key; use real quota), run from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test` (load+profile),
   `... python -m datascience_agent.scripts.smoke_test_m1` (run_python+commit),
@@ -65,13 +67,26 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   is now turnkey (modulo the machine-local `~/.claude` memory + plan file, whose content
   lives in `.context/`).
 
+- **M2a complete (multi-agent routing skeleton — 224 tests + routing smoke green):**
+  - `sub_agents/`: `data_steward`, `cleaning`, `analysis`, `reporting` — each a `build_*`
+    builder returning a model-agnostic `LlmAgent` with a focused instruction + small toolset
+    (D9). 8 tools distributed onto specialists; `run_python` on analysis (shared kernel via
+    session id). FE + modeling specialists deferred to M4/M5.
+  - `agent.py` rewritten: `root_agent` is now an `LlmAgent` orchestrator wrapping the 4
+    specialists as `AgentTool`s with a routing/plan/reflect instruction. `MCPToolset` import
+    dropped (deprecation carryover resolved; Kaggle wiring moves to Data Steward in M2b).
+  - `tests/test_agent.py` rewritten (topology), `tests/test_sub_agents.py` added (14 new).
+  - `scripts/smoke_test_routing.py`: LLM-driven, verified orchestrator→data_steward delegation.
+  - Removed empty unused `schemas/` dir (M0 carryover).
+
 ## In progress
-- (nothing mid-flight) — M1 closed out.
+- (nothing mid-flight) — M2a closed out.
 
 ## Next
-- Start **M2 (multi-agent skeleton)**: coordinator orchestrator + specialist sub-agents via
-  `AgentTool`; move 8 tools onto specialists; share `run_python`; `DatabaseSessionService`;
-  fix+test Kaggle MCP (needs `uv`); ADK eval framework. Also fold `MCPToolset`→`McpToolset`.
+- **M2b (connectors + ingestion):** install `uv`; conditional Kaggle `McpToolset` registration
+  on Data Steward (only when `uvx` present) + tests; `tools/ingestion.py` for `adk web` uploads.
+- **M2c (persistence + eval):** `google-adk[db]` + `DatabaseSessionService` (sqlite in
+  `sessions/`); `evals/*.evalset.json` + `AgentEvaluator`.
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
@@ -82,12 +97,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   non-functional until `uv` is installed AND credentials are set. (To be fixed + tested in M2.)
 - Env `dsagent` (conda) can run the suite — see "How to run" above. Earlier "can't run
   here" constraint is resolved.
-- `MCPToolset` is deprecated in ADK 2.1 (use `McpToolset`); left as-is to avoid churn — fold
-  into the M2 agent rewrite.
+- ~~`MCPToolset` deprecated~~ — resolved in M2a: `agent.py` no longer imports it; Kaggle MCP
+  moves to Data Steward (M2b) and will use `McpToolset`.
 - `adk web` "Upload local file" attaches the file as an `inlineData` Part to the message; our
   `dataset_loader` is path-only, so uploads aren't usable yet. Ingestion tool scheduled in M2
   (Data Steward). Workaround today: give the agent a local file path.
-- `schemas/` (empty dir) is unused and should be removed; the real models live in `tools/schemas.py`.
+- ~~`schemas/` empty dir~~ — removed in M2a. Real models live in `tools/schemas.py`.
 - `TaskConfig`/`PlannedTask` in `tools/schemas.py` is vestigial (unused by `agent.py`);
   planning will live in the orchestrator prompt for now.
 - Datetime-inference guard treats all-digit strings (incl. `YYYYMMDD`) as non-dates by
