@@ -32,8 +32,8 @@ Orchestrator still single-agent; escape hatch added.
 - [x] **Acceptance met:** LLM-driven `scripts/smoke_test_m1.py` → agent used `run_python` (commit=True for the transform, commit=False for inspection), `margin` column committed as a new audited version.
 **Notes:** secret isolation via env allowlist; macOS doesn't enforce RLIMIT_AS (wall-clock timeout is the reliable guard); kernel registry is per-session but single-process (multi-session keying = M2).
 
-## M2 — Multi-agent skeleton  *(M2a done — 224 tests + routing smoke green)*
-Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + ingestion · **M2c** persistence + eval.
+## ✅ M2 — Multi-agent skeleton  *(COMPLETE — 242 tests + routing smoke + live eval green)*
+Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + ingestion ✅ · **M2c** persistence + eval ✅.
 - [x] `sub_agents/`: data_steward, cleaning, analysis, reporting *(4 now; feature_engineering + modeling deferred to M4/M5 when they gain tools — D9)*
 - [x] Orchestrator wraps specialists via `AgentTool`; routing + planning + reflection prompt (`agent.py` rewritten as `LlmAgent` coordinator)
 - [x] Move 8 tools onto specialists; share `run_python` (analysis owns it; kernel keyed by session id, so shared)
@@ -46,12 +46,19 @@ Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + in
       ingest_uploaded_file` resolves uploaded bytes from an ADK artifact *or* an inline
       `user_content` Part → saves a versioned dataset artifact (mirrors `dataset_loader`).
       `tests/test_ingestion.py` covers inline + artifact + parquet + secondary + error paths.
-- [ ] `DatabaseSessionService` (SQLite in `sessions/`); extend `AgentSessionState`
+- [x] `DatabaseSessionService` (SQLite in `sessions/`) via `configs/session.py` helper +
+      `--session_service_uri` flag; `scripts/chat.py` persists by default. `AgentSessionState`
+      round-trips unchanged (no new fields needed yet). **Needs async driver:**
+      `sqlite+aiosqlite://` + `greenlet` (D11).
 - [ ] **Artifact-storage alignment (deferred from D8):** move off the `__`-key + manual `vN`
       scheme toward ADK-native integer versioning and/or real extensions
       (`.parquet`/`.json`/`.md`) so the `adk web` viewer can *preview* artifacts.
-- [ ] ADK eval framework: `*.evalset.json` + `AgentEvaluator` (routing + e2e clean pipeline)
-**Acceptance:** cleaning request routes orchestrator→cleaning specialist; restart resumes session; Kaggle search/download works with `uv` installed + creds.
+      *(Still deferred — not needed for the topology; revisit after M2.)*
+- [x] ADK eval framework: `evals/routing.evalset.json` + `evals/test_config.json` +
+      `tests/test_eval.py` (`AgentEvaluator`, gated behind `RUN_LLM_EVALS=1`). Needs
+      `google-adk[eval]`. Routing eval verified green live. (e2e-clean evalset deferred to M3+.)
+**Acceptance:** met — cleaning/load request routes orchestrator→specialist (smoke + live eval);
+restart resumes session (persistence test); Kaggle wiring conditional + tested (live needs creds).
 
 ## M3 — EDA & visualization
 - [ ] Richer profiling (correlations, target relationships, distributions) atop `build_dataset_profile`

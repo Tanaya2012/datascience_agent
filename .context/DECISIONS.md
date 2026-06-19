@@ -111,3 +111,26 @@ exists too — supporting both is defensive and testable without a live web serv
 on PATH; everything else is unit-tested (mocked `which`, fake contexts).
 **Rejected:** always-register Kaggle (error spam); inline-only ingestion (misses
 the artifact path); a new bespoke result schema (reused `DatasetLoaderResult`).
+**Amendment (M2c):** the gate also requires **Kaggle credentials** present
+(`~/.kaggle/kaggle.json` or `KAGGLE_USERNAME`/`KAGGLE_KEY`) — with `uvx` present but
+no creds, the MCP server starts and fails every request (error spam), so missing
+creds is treated like a missing launcher: skip the toolset.
+
+### 2026-06-17 — D11: Persistent sessions (async SQLite) + response-match eval gate (M2c)
+**Decision:** (a) Build session services in `configs/session.py`; default to a
+persistent `DatabaseSessionService` on **`sqlite+aiosqlite:///<project>/sessions/
+sessions.db`** with an `ensure_session` get-or-create. (b) Gate the routing eval
+(`evals/`) on `response_match_score` (ROUGE) only — **not** tool-trajectory.
+**Rationale:** ADK's `DatabaseSessionService` constructs an *async* SQLAlchemy
+engine, which rejects the sync `pysqlite` driver — `sqlite+aiosqlite` + `greenlet`
+are required (discovered at runtime). For eval, ADK's trajectory metric matches
+tool name **and args exactly**; an LLM-delegating orchestrator emits free-text
+delegation args, so exact-arg trajectory matching is inherently brittle — ROUGE
+overlap against a reference answer is the robust, deterministic-enough gate. Live
+routing is already covered deterministically by `scripts/smoke_test_routing.py`.
+**Consequence:** new deps `sqlalchemy`/`aiosqlite`/`greenlet` (in `requirements.txt`)
++ `google-adk[eval]` (ROUGE; not pinned in requirements — dev-only). Eval is
+`RUN_LLM_EVALS`-gated so the default suite stays quota-free. `AgentSessionState`
+needed no new fields to round-trip.
+**Rejected:** sync `sqlite://` (rejected by ADK's async engine); trajectory-metric
+eval (brittle exact-arg matching); always-on LLM eval (burns quota in CI).

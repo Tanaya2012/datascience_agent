@@ -12,7 +12,8 @@ explores, transforms, analyzes, models, and reports — keeping a full audit tra
   data mutation — tool or generated code — is checkpointed as a versioned Parquet
   artifact plus a transformation log.
 - **Multi-agent:** a model-agnostic orchestrator routes to focused specialists
-  (data steward, cleaning, analysis/EDA, feature engineering, modeling, reporting).
+  via `AgentTool` — Data Steward, Cleaning, Analysis/EDA, Reporting today
+  (Feature-Engineering & Modeling specialists land in M4/M5).
 - **Model-agnostic:** orchestrator model resolved from env via ADK + LiteLLM
   (Gemini / Claude / OpenAI / local). See `configs/model_config.py`.
 
@@ -41,6 +42,15 @@ conda run -n dsagent adk web datascience_agent      # browser UI
 # or:  adk run datascience_agent                     # terminal
 # or:  python -m datascience_agent.scripts.chat      # simple REPL
 ```
+
+Optional extras:
+- **Resumable sessions:** append
+  `--session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db"`
+  to `adk web`/`adk run` (note the async-SQLite driver). The `chat.py` REPL persists by default.
+- **Kaggle datasets:** install `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`,
+  ensure `~/.local/bin` is on PATH) and add `~/.kaggle/kaggle.json`; the Data Steward then
+  exposes Kaggle search/download. Without these it simply omits those tools.
+- **LLM eval suite:** `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (uses quota).
 
 Generate a messy sample dataset to try it on:
 

@@ -3,17 +3,21 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-16
-**Current milestone:** M2a + M2b complete → M2c (persistence + eval) next
+**Last updated:** 2026-06-17
+**Current milestone:** M2 COMPLETE (multi-agent skeleton) → M3 (EDA & visualization) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **224 passed**.
+  Last run: **242 passed, 1 skipped** (the skipped one is the LLM eval).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
+- LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
+  `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (routing evalset).
+- **Persistent sessions:** `adk web/run … --session_service_uri
+  "sqlite+aiosqlite:///<project>/sessions/sessions.db"` (async driver required).
 - LLM smoke tests (need API key; use real quota), run from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test` (load+profile),
   `... python -m datascience_agent.scripts.smoke_test_m1` (run_python+commit),
@@ -92,14 +96,30 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   - **Live Kaggle still unverified:** no `~/.kaggle/kaggle.json` on this box. Construction +
     conditional wiring are tested; a real search needs the user to add credentials.
 
+- **M2c complete (persistence + eval — 242 tests + 1 skipped; live eval verified):**
+  - Deps: `sqlalchemy`, `aiosqlite`, `greenlet` (DB) + `google-adk[eval]` (ROUGE) installed;
+    `requirements.txt` updated for the DB trio.
+  - `configs/session.py`: `make_session_service(persistent=…)` → `DatabaseSessionService`
+    (sqlite under `sessions/`) or in-memory; `ensure_session` get-or-create (resume vs new);
+    `default_session_db_uri()` uses **`sqlite+aiosqlite://`** (ADK builds an async engine; plain
+    `sqlite://`/pysqlite is rejected — D11). `scripts/chat.py` now persists + resumes by default.
+  - `tests/test_session_persistence.py` (4): URI/driver, service kinds, get-or-create, and a
+    write→fresh-service→read round-trip proving state survives a "restart".
+  - `evals/`: `routing.evalset.json` (load+profile case, `{{FIXTURE_CSV}}` token + `fixtures/
+    tiny.csv`) + `test_config.json` (gates on `response_match_score` 0.3 — robust vs. brittle
+    exact tool-arg trajectory matching). `tests/test_eval.py`: structural parse (always) + live
+    `AgentEvaluator` run (gated `RUN_LLM_EVALS=1`). **Live routing eval verified green.**
+  - Docs: `CAPABILITIES.md` + `README.MD` updated (topology, uploads, Kaggle gate, session-uri,
+    eval). `pytest.ini` registers the `llm` marker.
+
 ## In progress
-- (nothing mid-flight) — M2b closed out.
+- (nothing mid-flight) — **M2 fully closed out.**
 
 ## Next
-- **M2c (persistence + eval):** add `google-adk[db]` (sqlalchemy) → `DatabaseSessionService`
-  (sqlite in `sessions/`) via `--session_service_uri` + a helper for script Runners +
-  persistence test; `evals/*.evalset.json` + `AgentEvaluator` (`pytest -m llm`); update
-  `CAPABILITIES.md`/`README.MD` (session-uri flag, ingestion, Kaggle-now-works).
+- **M3 — EDA & visualization:** richer profiling (correlations, target relationships,
+  distributions) atop `build_dataset_profile`; first-class visualization helper(s)
+  (deterministic + `run_python`) on the Analysis specialist; narrative EDA summaries; unit
+  tests + an "explore this dataset" eval case (extend `evals/`).
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK

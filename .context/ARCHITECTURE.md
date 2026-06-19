@@ -42,6 +42,12 @@ comes from routing **every** data mutation through a versioned artifact + log.
    └─────────┴──────► shared ARTIFACT + AUDIT LAYER ◄───────────┘
 ```
 
+> **Status (M2):** the orchestrator + **four** specialists below — Data Steward,
+> Cleaning, Analysis/EDA, Reporting — are implemented (`agent.py` +
+> `sub_agents/`). Feature-Engineering and Modeling are part of the *target* but
+> deferred to M4/M5 when they gain real tools (D9); until then the Analysis
+> specialist's `run_python` covers that ground.
+
 - **Orchestrator** — converses, plans, routes to specialists, reflects on results.
 - **Specialists** — focused `LlmAgent`s, each with a small relevant toolset,
   exposed to the orchestrator via `AgentTool`:
@@ -64,7 +70,13 @@ comes from routing **every** data mutation through a versioned artifact + log.
 - **User-facing exports** — `generate_output` writes `cleaned_dataset.csv` /
   `cleaning_logs.json` / `quality_report.md` to `<project>/outputs/` (or a chosen
   `output_dir`) and returns absolute paths, in addition to saving them as artifacts.
-- **Resumable sessions** — `DatabaseSessionService` (SQLite under `sessions/`), M2+.
+- **Resumable sessions** — `DatabaseSessionService` (SQLite under `sessions/`),
+  built via `configs/session.py`; requires the async driver
+  (`sqlite+aiosqlite://` + `greenlet`). Wire into `adk web/run` with
+  `--session_service_uri`; scripts use the helper directly. (M2c, D11.)
+- **Eval harness** — ADK `AgentEvaluator` over `evals/*.evalset.json` (+
+  `test_config.json`), gated behind `RUN_LLM_EVALS=1`; gates on `response_match`
+  (ROUGE), not brittle tool-arg trajectory matching. (M2c, D11.)
 
 ## Code-execution sandbox (the escape hatch)
 
