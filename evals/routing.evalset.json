@@ -1,0 +1,31 @@
+{
+  "eval_set_id": "routing",
+  "name": "routing",
+  "description": "Orchestrator end-to-end routing: a load+profile request should reach the Data Steward and yield a correct shape/missingness answer. The {{FIXTURE_CSV}} token is replaced with the absolute path to evals/fixtures/tiny.csv at run time (see tests/test_eval.py).",
+  "eval_cases": [
+    {
+      "eval_id": "load_and_profile",
+      "conversation": [
+        {
+          "invocation_id": "load_and_profile_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Load the local CSV at {{FIXTURE_CSV}} and profile it. How many rows and columns does it have, and which column has a missing value?"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "The dataset has 3 rows and 3 columns: name, age, and city. The age column has a missing value."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
