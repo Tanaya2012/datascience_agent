@@ -2,6 +2,12 @@
 google-adk>=2.1.0
 mcp>=1.0.0           # Kaggle MCP toolset (StdioServerParameters); optional extra in ADK 2.x
 
+# Persistent sessions (DatabaseSessionService). ADK builds an *async* SQLAlchemy
+# engine, so SQLite needs the aiosqlite driver (sqlite+aiosqlite://) + greenlet.
+sqlalchemy>=2.0.0
+aiosqlite>=0.20.0
+greenlet>=3.0.0
+
 # Data handling
 pandas>=2.2.0
 pyarrow>=15.0.0       # required for parquet serialization

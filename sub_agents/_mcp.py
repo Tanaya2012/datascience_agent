@@ -15,7 +15,9 @@ subprocess inherits the parent environment, including PATH.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -28,9 +30,22 @@ def uvx_available() -> bool:
     return shutil.which("uvx") is not None
 
 
+def kaggle_credentials_available() -> bool:
+    """True if Kaggle creds are present (``~/.kaggle/kaggle.json`` or env vars).
+
+    Without credentials the ``kaggle-mcp`` server starts but fails on every
+    request, so we treat missing creds the same as a missing launcher: skip the
+    toolset rather than spam per-turn MCP session errors.
+    """
+    if os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY"):
+        return True
+    return (Path.home() / ".kaggle" / "kaggle.json").is_file()
+
+
 def maybe_kaggle_toolset() -> Optional[object]:
     """
-    Build the Kaggle ``McpToolset`` if ``uvx`` is available, else ``None``.
+    Build the Kaggle ``McpToolset`` if ``uvx`` **and** credentials are available,
+    else ``None``.
 
     Returning ``None`` (instead of raising) lets callers append the toolset
     conditionally: ``tools = [...]; ts = maybe_kaggle_toolset();  tools += [ts] if ts``.
@@ -39,6 +54,13 @@ def maybe_kaggle_toolset() -> Optional[object]:
         logger.info(
             "uvx not found on PATH — skipping Kaggle MCP toolset. Install `uv` "
             "(https://astral.sh/uv) and set Kaggle credentials to enable it."
+        )
+        return None
+
+    if not kaggle_credentials_available():
+        logger.info(
+            "Kaggle credentials not found (~/.kaggle/kaggle.json or KAGGLE_USERNAME/"
+            "KAGGLE_KEY) — skipping Kaggle MCP toolset to avoid per-turn session errors."
         )
         return None
 

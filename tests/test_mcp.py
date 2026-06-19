@@ -14,27 +14,32 @@ from datascience_agent.sub_agents import _mcp
 from datascience_agent.sub_agents.data_steward import build_data_steward
 
 
-def _force_uvx(monkeypatch, present: bool):
-    monkeypatch.setattr(
-        _mcp.shutil, "which", lambda cmd: "/usr/bin/uvx" if present else None
-    )
+def _force(monkeypatch, *, uvx: bool, creds: bool = True):
+    """Force the two gates: uvx-on-PATH and Kaggle-credentials-present."""
+    monkeypatch.setattr(_mcp.shutil, "which", lambda cmd: "/usr/bin/uvx" if uvx else None)
+    monkeypatch.setattr(_mcp, "kaggle_credentials_available", lambda: creds)
 
 
 class TestMaybeKaggleToolset:
     def test_returns_none_when_uvx_absent(self, monkeypatch):
-        _force_uvx(monkeypatch, present=False)
+        _force(monkeypatch, uvx=False)
         assert _mcp.uvx_available() is False
         assert _mcp.maybe_kaggle_toolset() is None
 
-    def test_builds_toolset_when_uvx_present(self, monkeypatch):
-        _force_uvx(monkeypatch, present=True)
+    def test_returns_none_when_creds_absent(self, monkeypatch):
+        # uvx present but no Kaggle creds → skip (would otherwise spam MCP errors).
+        _force(monkeypatch, uvx=True, creds=False)
+        assert _mcp.maybe_kaggle_toolset() is None
+
+    def test_builds_toolset_when_uvx_and_creds_present(self, monkeypatch):
+        _force(monkeypatch, uvx=True, creds=True)
         ts = _mcp.maybe_kaggle_toolset()
         from google.adk.tools.mcp_tool import McpToolset
 
         assert isinstance(ts, McpToolset)
 
     def test_toolset_filter_and_command(self, monkeypatch):
-        _force_uvx(monkeypatch, present=True)
+        _force(monkeypatch, uvx=True, creds=True)
         ts = _mcp.maybe_kaggle_toolset()
         assert set(ts.tool_filter) == {"search_kaggle_datasets", "download_kaggle_dataset"}
         server_params = ts._connection_params.server_params
@@ -46,7 +51,7 @@ class TestMaybeKaggleToolset:
 
 class TestDataStewardConditionalWiring:
     def test_steward_has_no_mcp_toolset_when_uvx_absent(self, monkeypatch):
-        _force_uvx(monkeypatch, present=False)
+        _force(monkeypatch, uvx=False)
         steward = build_data_steward()
         from google.adk.tools.mcp_tool import McpToolset
 
@@ -55,8 +60,8 @@ class TestDataStewardConditionalWiring:
         fn_tools = {t.__name__ for t in steward.tools if hasattr(t, "__name__")}
         assert fn_tools == {"dataset_loader", "ingest_uploaded_file", "profile_dataset"}
 
-    def test_steward_includes_mcp_toolset_when_uvx_present(self, monkeypatch):
-        _force_uvx(monkeypatch, present=True)
+    def test_steward_includes_mcp_toolset_when_enabled(self, monkeypatch):
+        _force(monkeypatch, uvx=True, creds=True)
         steward = build_data_steward()
         from google.adk.tools.mcp_tool import McpToolset
 
