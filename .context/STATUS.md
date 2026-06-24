@@ -11,7 +11,7 @@
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **271 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
+  Last run: **275 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -135,6 +135,10 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   cross-specialist EDA flow (load via Data Steward → explore via Analysis) which previously
   looped on "no dataset loaded". State sharing across `AgentTool` was confirmed fine; the
   issue was tools *requiring* a key the calling LLM couldn't supply.
+  **Regression guard added:** `tests/test_cross_specialist.py` chains load→profile→explore→
+  impute→plot→validate→export through one shared session state with **no key threaded** — a
+  deterministic (CI-run) stand-in for the multi-agent handoff that the LLM-gated `eda` evalset
+  alone didn't cover. Would have failed pre-D13 (tools then required the key).
 
 ## In progress
 - (nothing mid-flight) — **M3 fully closed out.**
