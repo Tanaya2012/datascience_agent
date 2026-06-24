@@ -134,3 +134,49 @@ routing is already covered deterministically by `scripts/smoke_test_routing.py`.
 needed no new fields to round-trip.
 **Rejected:** sync `sqlite://` (rejected by ADK's async engine); trajectory-metric
 eval (brittle exact-arg matching); always-on LLM eval (burns quota in CI).
+
+### 2026-06-21 — D12: EDA as a new tool + deterministic plotting (matplotlib in agent env) (M3)
+**Decision:** (a) Put richer EDA in a **new `explore_dataset` tool** on the Analysis
+specialist (not by extending `profile_dataset`/`build_dataset_profile`). (b) Add a
+**deterministic `plot_dataset` tool** with a small enum-constrained `ChartKind`
+catalog, rendering in-process with **matplotlib (Agg)** — adding matplotlib to the
+*agent* env (it was previously only in the worker venv). `run_python` stays the
+escape hatch for non-standard plots.
+**Rationale:** `profile_dataset` is a cheap structural survey that runs early/often
+on intake (Data Steward); correlation is ~O(n·k²), so folding analytical EDA into it
+would couple heavy cost to every profile and misplace the capability off the Analysis
+specialist. A separate tool keeps concerns clean and is reusable by M4/M5. For plots,
+a deterministic tool gives repeatable, testable, structured charts (no LLM codegen
+variance/retry loops) — matching the project's "safe deterministic core + code escape
+hatch" philosophy; the modest cost is one stable, headless dependency already present
+in the worker venv. Both confirmed by the user (complexity-vs-capability analysis).
+**Consequence:** new deps `matplotlib`/`scipy` in `requirements.txt`; +2 `TaskType`s;
+EDA JSON saved under the existing `"profile"` artifact type (no key-scheme change);
+`run_python` guidance kept verbatim in the Analysis instruction (commit semantics).
+**Rejected:** extending `profile_dataset` (couples cost, wrong specialist);
+`run_python`-only viz (not repeatable/testable, no structured chart contract).
+
+### 2026-06-22 — D13: dataset_artifact_key defaults to current_dataset_key (multi-agent bug fix)
+**Decision:** Make `dataset_artifact_key` **optional** on every dataset-consuming
+tool (profiler, eda, viz, all cleaning tools, merge, validator, output), defaulting
+to `state.current_dataset_key` via `resolve_dataset_key()` in `artifact_utils.py`;
+return a clean "No dataset loaded" error when neither is available.
+**Why (the bug):** In the multi-agent topology each specialist is a *separate LLM
+context*. When the orchestrator delegated e.g. "calculate correlations" to the
+Analysis specialist, that LLM only saw the natural-language request — it had **no
+way to know the physical artifact key** (which lives in shared session state, not in
+its prompt), so key-requiring tools failed with "no dataset loaded" and the agent
+looped. M3 surfaced it by adding key-requiring tools (`explore_dataset`/
+`plot_dataset`) to Analysis; `run_python` had dodged it by reading state directly.
+Latent in the cleaning specialist too. **State sharing across `AgentTool` was never
+the problem** — verified via the live trace that `current_dataset_key` propagates
+correctly; the gap was that tools *required* a key the calling LLM couldn't supply.
+**Implementation:** key kept first-and-optional everywhere (so existing positional
+test calls stand); for `merge_datasets`/`handle_missing_values` the following
+required params were made optional-with-internal-validation rather than reordered.
+Specialist instructions now state the tools act on the current dataset automatically.
+**Verified:** the originally-failing "load + explore correlations with revenue" flow
+now answers correctly end-to-end (live). 271 tests green.
+**Rejected:** reordering key to last everywhere (churns ~20 positional test calls);
+a state-reader tool for the LLM (indirection vs. a sensible default); leaving keys
+required + teaching the orchestrator to thread them through delegation text (brittle).

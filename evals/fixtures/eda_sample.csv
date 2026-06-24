@@ -1,0 +1,13 @@
+region,units_sold,revenue,discount_pct
+West,5,520,2
+East,3,310,5
+West,8,810,1
+North,2,205,8
+South,10,1015,0
+East,4,395,4
+West,7,700,2
+North,1,110,9
+South,9,915,1
+East,6,615,3
+West,11,1120,0
+North,3,300,6

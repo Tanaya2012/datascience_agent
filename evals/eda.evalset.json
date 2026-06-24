@@ -1,0 +1,31 @@
+{
+  "eval_set_id": "eda",
+  "name": "eda",
+  "description": "EDA routing: an 'explore this dataset' request should reach the Analysis specialist and surface the strong units_sold↔revenue relationship. The {{EDA_CSV}} token is replaced with the absolute path to evals/fixtures/eda_sample.csv at run time (see tests/test_eval.py).",
+  "eval_cases": [
+    {
+      "eval_id": "explore_correlations",
+      "conversation": [
+        {
+          "invocation_id": "explore_correlations_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Load the local CSV at {{EDA_CSV}}, then explore it: which numeric column is most strongly correlated with revenue?"
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "units_sold is very strongly positively correlated with revenue (correlation near 1.0); discount_pct is negatively related."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

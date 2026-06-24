@@ -23,6 +23,7 @@ from ..artifact_utils import (
     make_schema_digest,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -59,7 +60,7 @@ def _to_snake_case(name: str) -> str:
 
 
 async def standardize_formats(
-    dataset_artifact_key: str,
+    dataset_artifact_key: Optional[str] = None,
     normalize_headers: bool = True,
     parse_dates: bool = True,
     parse_currency: bool = True,
@@ -84,6 +85,13 @@ async def standardize_formats(
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
     column_overrides = column_overrides or {}
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return FormatStandardizerResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     try:
         raw = await load_artifact(dataset_artifact_key, tool_context)

@@ -3,15 +3,15 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-17
-**Current milestone:** M2 COMPLETE (multi-agent skeleton) → M3 (EDA & visualization) next
+**Last updated:** 2026-06-21
+**Current milestone:** M3 COMPLETE (EDA & visualization) → M4 (feature engineering & statistics) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **242 passed, 1 skipped** (the skipped one is the LLM eval).
+  Last run: **271 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -112,14 +112,38 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   - Docs: `CAPABILITIES.md` + `README.MD` updated (topology, uploads, Kaggle gate, session-uri,
     eval). `pytest.ini` registers the `llm` marker.
 
+- **M3 complete (EDA & visualization — 265 tests + 1 skipped; live EDA eval verified):**
+  - `tools/artifact_utils.py::build_eda_report` — correlations (Pearson/Spearman, top pairs by
+    |coef|), distribution shape (scipy skew/excess-kurtosis), target relationships (corr for a
+    numeric target, one-way ANOVA F for a categorical one), plain-English narrative.
+  - `tools/eda.py::explore_dataset` — read-only EDA tool; saves an `EdaReport` JSON artifact
+    (`explore_dataset__vN__profile`). On the Analysis specialist.
+  - `tools/visualization.py::plot_dataset` — deterministic matplotlib (Agg) charts:
+    histogram/bar/scatter/box/correlation_heatmap/line → PNG artifact. Enum-constrained
+    `ChartKind`; clean errors on bad specs. Added `matplotlib` to agent env + `requirements.txt`.
+  - Schemas: `TaskType.explore_dataset`/`plot_dataset`, `ChartKind`, `CorrelationMethod`,
+    `EdaReport`+sub-models, `ExploreResult`, `PlotResult`.
+  - Analysis instruction updated: prefer `explore_dataset`/`plot_dataset`, keep the full
+    "How to use run_python" block (incl. commit semantics) for the long tail.
+  - Tests: `test_eda.py` (11), `test_visualization.py` (12); `evals/eda.evalset.json` +
+    `fixtures/eda_sample.csv`; `test_eval.py` generalized over both evalsets (token→fixture map).
+
+- **Multi-agent key-passing bug fixed (D13) — 271 tests green:** every dataset-consuming
+  tool now defaults `dataset_artifact_key` to `state.current_dataset_key` (via
+  `resolve_dataset_key`), so a specialist LLM can invoke tools without knowing the artifact
+  key (it isn't in that LLM's context across the `AgentTool` boundary). This unblocked the
+  cross-specialist EDA flow (load via Data Steward → explore via Analysis) which previously
+  looped on "no dataset loaded". State sharing across `AgentTool` was confirmed fine; the
+  issue was tools *requiring* a key the calling LLM couldn't supply.
+
 ## In progress
-- (nothing mid-flight) — **M2 fully closed out.**
+- (nothing mid-flight) — **M3 fully closed out.**
 
 ## Next
-- **M3 — EDA & visualization:** richer profiling (correlations, target relationships,
-  distributions) atop `build_dataset_profile`; first-class visualization helper(s)
-  (deterministic + `run_python`) on the Analysis specialist; narrative EDA summaries; unit
-  tests + an "explore this dataset" eval case (extend `evals/`).
+- **M4 — Feature engineering & statistics:** helpers to encode (one-hot/label/target), scale,
+  bin, derive datetime features, and add derived columns; statistical tests (t-test, chi²,
+  ANOVA, correlation). New Feature-Engineering specialist (its tools now exist → it earns its
+  shell per D9). Unit tests + eval. (Reuse `build_eda_report`'s scipy patterns for stats.)
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK

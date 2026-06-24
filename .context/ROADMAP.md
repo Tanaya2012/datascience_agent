@@ -60,10 +60,15 @@ Delivered in sub-phases: **M2a** routing skeleton ✅ · **M2b** connectors + in
 **Acceptance:** met — cleaning/load request routes orchestrator→specialist (smoke + live eval);
 restart resumes session (persistence test); Kaggle wiring conditional + tested (live needs creds).
 
-## M3 — EDA & visualization
-- [ ] Richer profiling (correlations, target relationships, distributions) atop `build_dataset_profile`
-- [ ] Visualization helper(s) (deterministic + `run_python`); narrative EDA summaries
-- [ ] Unit tests + "explore this dataset" eval
+## ✅ M3 — EDA & visualization  *(COMPLETE — 265 tests + live EDA eval green)*
+- [x] Richer EDA via a **new `explore_dataset` tool** (Analysis specialist), not bloating the
+      structural profiler (D12): `build_eda_report` in `artifact_utils.py` — correlations
+      (Pearson/Spearman), distribution shape (skew/kurtosis via scipy), target relationships
+      (corr for numeric target, ANOVA F for categorical), narrative. JSON EDA artifact.
+- [x] **Deterministic `plot_dataset` tool** (matplotlib Agg in the agent env) — histogram/bar/
+      scatter/box/correlation_heatmap/line → PNG artifact; `run_python` kept for custom plots.
+- [x] Unit tests (`test_eda.py` 11, `test_visualization.py` 12) + "explore this dataset" eval
+      (`evals/eda.evalset.json` + `eda_sample.csv`); live EDA eval verified green.
 
 ## M4 — Feature engineering & statistics
 - [ ] Helpers: encode (one-hot/label/target), scale, bin, datetime-features, derived columns

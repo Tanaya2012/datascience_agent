@@ -19,6 +19,7 @@ from .artifact_utils import (
     make_artifact_key,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -39,20 +40,28 @@ STEP_NAME = "validate_dataset"
 
 
 async def validate_dataset(
-    dataset_artifact_key: str,
+    dataset_artifact_key: Optional[str] = None,
     tool_context: Optional[ToolContext] = None,
 ) -> dict:
     """
     Validate the current dataset and produce a quality score.
 
     Args:
-        dataset_artifact_key: Artifact key of the dataset to validate
+        dataset_artifact_key: Artifact key of the dataset to validate. Optional —
+            defaults to the session's current dataset, so you usually omit it.
         tool_context: Injected by ADK at runtime
 
     Returns:
         Serialized ValidatorResult dict with quality_score 0–100 and issue list
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return ValidatorResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     try:
         raw = await load_artifact(dataset_artifact_key, tool_context)

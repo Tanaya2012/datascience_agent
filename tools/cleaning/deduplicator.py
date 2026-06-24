@@ -22,6 +22,7 @@ from ..artifact_utils import (
     make_schema_digest,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -41,7 +42,7 @@ STEP_NAME = "deduplicate_dataset"
 
 
 async def deduplicate_dataset(
-    dataset_artifact_key: str,
+    dataset_artifact_key: Optional[str] = None,
     exact_dedup: bool = True,
     fuzzy_dedup: bool = False,
     fuzzy_columns: Optional[list[str]] = None,
@@ -67,6 +68,13 @@ async def deduplicate_dataset(
         Serialized DeduplicatorResult dict
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return DeduplicatorResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     try:
         raw = await load_artifact(dataset_artifact_key, tool_context)

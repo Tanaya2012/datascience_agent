@@ -23,6 +23,7 @@ from ..artifact_utils import (
     make_schema_digest,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -42,8 +43,8 @@ STEP_NAME = "handle_missing_values"
 
 
 async def handle_missing_values(
-    dataset_artifact_key: str,
-    strategy_config: dict[str, str],
+    dataset_artifact_key: Optional[str] = None,
+    strategy_config: Optional[dict[str, str]] = None,
     constant_fill_values: Optional[dict[str, Any]] = None,
     drop_threshold: float = 0.5,
     tool_context: Optional[ToolContext] = None,
@@ -52,7 +53,8 @@ async def handle_missing_values(
     Apply per-column missing-value strategies to a dataset.
 
     Args:
-        dataset_artifact_key: Artifact key of the current dataset
+        dataset_artifact_key: Artifact key of the dataset. Optional — defaults to
+            the session's current dataset, so you usually omit it.
         strategy_config: Mapping of column name → MissingStrategy value
         constant_fill_values: Mapping of column name → fill value (for strategy=constant)
         drop_threshold: Columns with > this fraction missing are dropped entirely (0.0–1.0)
@@ -63,6 +65,14 @@ async def handle_missing_values(
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
     constant_fill_values = constant_fill_values or {}
+    strategy_config = strategy_config or {}
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return MissingHandlerResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     try:
         raw = await load_artifact(dataset_artifact_key, tool_context)

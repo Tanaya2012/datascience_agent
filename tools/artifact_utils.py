@@ -86,7 +86,7 @@ def make_schema_digest(df: pd.DataFrame) -> str:
 def make_artifact_key(
     step_name: str,
     version: int,
-    artifact_type: Literal["dataset", "profile", "log", "report", "plot"],
+    artifact_type: Literal["dataset", "profile", "eda", "log", "report", "plot"],
 ) -> str:
     """
     Build a canonical artifact key.
@@ -111,17 +111,37 @@ def next_version(manifest: ArtifactManifest, step_name: str) -> int:
 # Dual storage: ADK ArtifactService + local filesystem fallback
 # ---------------------------------------------------------------------------
 
+def _mime_for_key(key: str) -> str:
+    """Infer a MIME type from an artifact key's extension.
+
+    Lets the `adk web` artifact viewer preview images/text inline instead of
+    treating every artifact as a generic blob. Keys without an extension (datasets,
+    profiles) fall back to octet-stream.
+    """
+    lower = key.lower()
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".json"):
+        return "application/json"
+    if lower.endswith(".md"):
+        return "text/markdown"
+    if lower.endswith(".csv"):
+        return "text/csv"
+    return "application/octet-stream"
+
+
 async def save_artifact(key: str, data: bytes, tool_context: "ToolContext") -> None:
     """
     Persist artifact bytes under *key*.
 
     Tries ADK's ArtifactService first; falls back to ARTIFACTS_DIR/<key>.
     Keys are slash-free (e.g. "load__v1__dataset"), so the local fallback
-    writes a flat file per artifact.
+    writes a flat file per artifact. The MIME type is inferred from the key's
+    extension so the web viewer can preview images/text (e.g. plot PNGs) inline.
     """
     try:
         import google.genai.types as genai_types  # type: ignore[import]
-        part = genai_types.Part.from_bytes(data=data, mime_type="application/octet-stream")
+        part = genai_types.Part.from_bytes(data=data, mime_type=_mime_for_key(key))
         await tool_context.save_artifact(filename=key, artifact=part)
         return
     except Exception:
@@ -179,6 +199,22 @@ def get_session_state(tool_context: "ToolContext") -> AgentSessionState:
 def set_session_state(state: AgentSessionState, tool_context: "ToolContext") -> None:
     """Serialize AgentSessionState and write it to tool_context.state."""
     tool_context.state[SESSION_STATE_KEY] = state.model_dump(mode="json")
+
+
+def resolve_dataset_key(
+    dataset_artifact_key: str | None, state: AgentSessionState
+) -> str | None:
+    """
+    Resolve which dataset a tool should operate on.
+
+    Returns the explicit ``dataset_artifact_key`` if given, otherwise the
+    session's ``current_dataset_key`` (the latest dataset version). This lets a
+    specialist agent invoke a tool without knowing the physical artifact key —
+    essential in the multi-agent topology, where the calling LLM only sees the
+    orchestrator's natural-language request, not prior tools' returned keys.
+    Returns ``None`` if neither is available (no dataset loaded yet).
+    """
+    return dataset_artifact_key or state.current_dataset_key
 
 
 # ---------------------------------------------------------------------------
@@ -464,3 +500,191 @@ def build_dataset_profile(df: pd.DataFrame, artifact_key: str) -> DatasetProfile
         quality_score_estimate=round(quality_score, 2),
         high_priority_issues=high_priority_issues,
     )
+
+
+# ---------------------------------------------------------------------------
+# EDA report builder (M3) — analytical deep-dive (correlations, distributions,
+# target relationships, narrative). Distinct from the structural DatasetProfile.
+# ---------------------------------------------------------------------------
+
+_STRONG_CORR_THRESHOLD = 0.5
+_HIGH_SKEW_THRESHOLD = 1.0
+
+
+def build_eda_report(
+    df: pd.DataFrame,
+    artifact_key: str,
+    target: str | None = None,
+    method: str = "pearson",
+    top_n: int = 10,
+):
+    """
+    Build an EdaReport for a DataFrame: numeric correlations, distribution shape
+    (skew/kurtosis), optional feature↔target relationships, and a plain-English
+    narrative. Operates on already-numeric columns (run cleaning first for best
+    results). Pure/​deterministic; uses scipy for skew/kurtosis and ANOVA.
+    """
+    from .schemas import (
+        CorrelationMethod,
+        CorrelationPair,
+        DistributionStat,
+        EdaReport,
+        TargetRelationship,
+    )
+
+    corr_method = CorrelationMethod(method)
+    n_rows, n_cols = df.shape
+
+    numeric_df = df.select_dtypes(include="number")
+    numeric_cols = list(numeric_df.columns)
+    categorical_cols = [c for c in df.columns if c not in numeric_cols]
+
+    # --- Correlations (top pairs by |coef|) ---
+    top_correlations: list[CorrelationPair] = []
+    if len(numeric_cols) >= 2:
+        corr = numeric_df.corr(method=corr_method.value, numeric_only=True)
+        cols = list(corr.columns)
+        pairs: list[CorrelationPair] = []
+        for i in range(len(cols)):
+            for j in range(i + 1, len(cols)):
+                coef = corr.iloc[i, j]
+                if pd.notna(coef):
+                    pairs.append(
+                        CorrelationPair(
+                            col_a=cols[i], col_b=cols[j],
+                            coef=round(float(coef), 4), method=corr_method,
+                        )
+                    )
+        pairs.sort(key=lambda p: abs(p.coef), reverse=True)
+        top_correlations = pairs[:top_n]
+
+    # --- Distribution shape ---
+    distribution_stats: list[DistributionStat] = []
+    for col in numeric_cols:
+        s = numeric_df[col].dropna()
+        skew = kurt = None
+        if len(s) >= 3 and s.nunique() > 1:
+            from scipy import stats as _stats
+
+            skew = round(float(_stats.skew(s)), 4)
+            kurt = round(float(_stats.kurtosis(s)), 4)  # excess (Fisher)
+        distribution_stats.append(
+            DistributionStat(
+                column=col, skewness=skew, kurtosis=kurt,
+                is_highly_skewed=(skew is not None and abs(skew) > _HIGH_SKEW_THRESHOLD),
+            )
+        )
+
+    # --- Target relationships ---
+    target_relationships: list[TargetRelationship] = []
+    valid_target = target if (target and target in df.columns) else None
+    if valid_target is not None:
+        target_relationships = _build_target_relationships(
+            df, numeric_df, numeric_cols, valid_target, corr_method
+        )
+
+    narrative = _build_eda_narrative(
+        numeric_cols, categorical_cols, top_correlations, distribution_stats,
+        valid_target, target_relationships,
+    )
+
+    return EdaReport(
+        artifact_key=artifact_key,
+        shape=(n_rows, n_cols),
+        numeric_columns=numeric_cols,
+        categorical_columns=categorical_cols,
+        correlation_method=corr_method,
+        top_correlations=top_correlations,
+        distribution_stats=distribution_stats,
+        target=valid_target,
+        target_relationships=target_relationships,
+        narrative=narrative,
+    )
+
+
+def _build_target_relationships(df, numeric_df, numeric_cols, target, corr_method):
+    """Feature↔target association: correlation (numeric target) or ANOVA F (categorical)."""
+    from .schemas import AssociationMethod, TargetRelationship
+
+    rels: list[TargetRelationship] = []
+    target_is_numeric = target in numeric_cols
+
+    if target_is_numeric:
+        for col in numeric_cols:
+            if col == target:
+                continue
+            pair = numeric_df[[col, target]].dropna()
+            if len(pair) >= 3 and pair[col].nunique() > 1 and pair[target].nunique() > 1:
+                coef = pair[col].corr(pair[target], method=corr_method.value)
+                if pd.notna(coef):
+                    rels.append(
+                        TargetRelationship(
+                            feature=col, target=target,
+                            association=round(float(coef), 4),
+                            method=AssociationMethod(corr_method.value),
+                        )
+                    )
+        rels.sort(key=lambda r: abs(r.association), reverse=True)
+    else:
+        from scipy import stats as _stats
+
+        for col in numeric_cols:
+            sub = df[[col, target]].dropna()
+            groups = [g[col].values for _, g in sub.groupby(target) if len(g) >= 2]
+            if len(groups) >= 2:
+                f_stat, p_val = _stats.f_oneway(*groups)
+                if not math.isnan(f_stat):
+                    rels.append(
+                        TargetRelationship(
+                            feature=col, target=target,
+                            association=round(float(f_stat), 4),
+                            method=AssociationMethod.anova_f,
+                            p_value=round(float(p_val), 6),
+                        )
+                    )
+        rels.sort(key=lambda r: r.association, reverse=True)
+
+    return rels
+
+
+def _build_eda_narrative(
+    numeric_cols, categorical_cols, top_correlations, distribution_stats,
+    target, target_relationships,
+) -> list[str]:
+    """Turn the computed EDA stats into plain-English findings for the LLM."""
+    lines: list[str] = []
+
+    if not numeric_cols:
+        lines.append(
+            "No numeric columns to analyze — correlations and distribution stats "
+            "are unavailable. Consider standardizing formats first."
+        )
+    strong = [c for c in top_correlations if abs(c.coef) >= _STRONG_CORR_THRESHOLD]
+    if strong:
+        bits = ", ".join(f"{c.col_a}↔{c.col_b} ({c.coef:+.2f})" for c in strong[:5])
+        lines.append(f"Strong correlations: {bits}.")
+    elif len(numeric_cols) >= 2:
+        lines.append("No strong (|r|≥0.5) correlations among numeric columns.")
+
+    skewed = [d.column for d in distribution_stats if d.is_highly_skewed]
+    if skewed:
+        lines.append(
+            f"Highly skewed columns (|skew|>1): {', '.join(skewed)} — consider a "
+            "log/power transform before modeling."
+        )
+
+    if target and target_relationships:
+        kind = target_relationships[0].method
+        top = target_relationships[:5]
+        if kind == "anova_f":
+            bits = ", ".join(f"{r.feature} (F={r.association:.1f})" for r in top)
+            lines.append(f"Features most associated with '{target}' (ANOVA): {bits}.")
+        else:
+            bits = ", ".join(f"{r.feature} ({r.association:+.2f})" for r in top)
+            lines.append(f"Features most correlated with target '{target}': {bits}.")
+    elif target:
+        lines.append(f"No numeric features showed a measurable relationship with '{target}'.")
+
+    if not lines:
+        lines.append("No notable EDA findings for this dataset.")
+    return lines

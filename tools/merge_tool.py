@@ -22,6 +22,7 @@ from .artifact_utils import (
     make_schema_digest,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -41,9 +42,9 @@ STEP_NAME = "merge_datasets"
 
 
 async def merge_datasets(
-    dataset_artifact_key: str,
-    secondary_name: str,
-    join_key: str,
+    dataset_artifact_key: Optional[str] = None,
+    secondary_name: Optional[str] = None,
+    join_key: Optional[str] = None,
     join_type: str = JoinType.left.value,
     validate_key_uniqueness: bool = True,
     tool_context: Optional[ToolContext] = None,
@@ -52,7 +53,8 @@ async def merge_datasets(
     Merge the primary dataset with a previously loaded secondary dataset.
 
     Args:
-        dataset_artifact_key: Artifact key of the primary (left) dataset
+        dataset_artifact_key: Artifact key of the primary (left) dataset. Optional —
+            defaults to the session's current dataset, so you usually omit it.
         secondary_name: Key in AgentSessionState.secondary_datasets
         join_key: Column name to join on (must exist in both datasets)
         join_type: Join strategy — left, right, inner, or outer
@@ -63,6 +65,13 @@ async def merge_datasets(
         Serialized MergeResult dict
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return MergeResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No primary dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     # Load primary dataset
     try:

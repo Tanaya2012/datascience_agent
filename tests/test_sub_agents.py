@@ -40,7 +40,10 @@ BUILDERS = {
             "validate_dataset",
         },
     ),
-    "analysis_specialist": (build_analysis_specialist, {"profile_dataset", "run_python"}),
+    "analysis_specialist": (
+        build_analysis_specialist,
+        {"profile_dataset", "explore_dataset", "plot_dataset", "run_python"},
+    ),
     "reporting_specialist": (build_reporting_specialist, {"generate_output"}),
 }
 

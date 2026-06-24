@@ -39,6 +39,8 @@ class TaskType(str, Enum):
     validate_dataset = "validate_dataset"
     generate_output = "generate_output"
     run_python = "run_python"        # code-execution escape hatch (M1)
+    explore_dataset = "explore_dataset"  # richer EDA: correlations/distributions/target (M3)
+    plot_dataset = "plot_dataset"        # deterministic visualization (M3)
 
 
 class PipelineStatus(str, Enum):
@@ -105,6 +107,32 @@ class FuzzyAlgorithm(str, Enum):
     token_set_ratio = "token_set_ratio"
     partial_ratio = "partial_ratio"
     jaro_winkler = "jaro_winkler"
+
+
+class CorrelationMethod(str, Enum):
+    pearson = "pearson"
+    spearman = "spearman"
+
+
+class AssociationMethod(str, Enum):
+    """How a feature↔target association was measured (EDA, M3).
+
+    Superset of CorrelationMethod plus ANOVA. Kept separate from
+    CorrelationMethod because the latter's value feeds pandas ``df.corr(method=)``,
+    which does not accept ``anova_f``.
+    """
+    pearson = "pearson"
+    spearman = "spearman"
+    anova_f = "anova_f"
+
+
+class ChartKind(str, Enum):
+    histogram = "histogram"
+    bar = "bar"
+    scatter = "scatter"
+    box = "box"
+    correlation_heatmap = "correlation_heatmap"
+    line = "line"
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +313,45 @@ class DatasetProfile(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# D2. EDA Models (M3) — analytical deep-dive, distinct from structural profile
+# ---------------------------------------------------------------------------
+
+class CorrelationPair(BaseModel):
+    col_a: str
+    col_b: str
+    coef: float                              # correlation coefficient
+    method: CorrelationMethod = CorrelationMethod.pearson
+
+
+class DistributionStat(BaseModel):
+    column: str
+    skewness: float | None = None
+    kurtosis: float | None = None            # excess kurtosis (Fisher)
+    is_highly_skewed: bool = False           # |skew| > 1
+
+
+class TargetRelationship(BaseModel):
+    feature: str
+    target: str
+    association: float                       # corr (numeric target) or ANOVA F (categorical target)
+    method: AssociationMethod
+    p_value: float | None = None
+
+
+class EdaReport(BaseModel):
+    artifact_key: str                        # dataset the EDA was computed on
+    shape: tuple[int, int]
+    numeric_columns: list[str] = []
+    categorical_columns: list[str] = []
+    correlation_method: CorrelationMethod = CorrelationMethod.pearson
+    top_correlations: list[CorrelationPair] = []     # strongest |coef| pairs
+    distribution_stats: list[DistributionStat] = []
+    target: str | None = None
+    target_relationships: list[TargetRelationship] = []  # sorted strongest first
+    narrative: list[str] = []                # plain-English findings for the LLM
+
+
+# ---------------------------------------------------------------------------
 # E. Transformation Log Models
 # ---------------------------------------------------------------------------
 
@@ -402,6 +469,20 @@ class CodeExecResult(BaseToolResult):
     committed: bool = False                  # whether df was checkpointed to a new version
     plot_artifact_keys: list[str] = []       # any matplotlib figures saved as artifacts
     available_packages: list[str] = []       # advertised once (first call) to aid the model
+
+
+class ExploreResult(BaseToolResult):
+    """Result of explore_dataset — the richer EDA tool (M3)."""
+    eda_report: EdaReport | None = None
+    eda_artifact_key: str | None = None      # JSON artifact holding the EdaReport
+
+
+class PlotResult(BaseToolResult):
+    """Result of plot_dataset — deterministic visualization (M3)."""
+    plot_artifact_key: str | None = None     # PNG artifact key
+    chart_kind: ChartKind | None = None
+    columns_used: list[str] = []
+    caption: str | None = None               # plain-English description of the chart
 
 
 # ---------------------------------------------------------------------------

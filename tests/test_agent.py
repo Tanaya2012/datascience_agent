@@ -80,7 +80,7 @@ class TestSpecialistTooling:
 
     def test_analysis_specialist_tools(self):
         tools = _function_tool_names(self._specialist("analysis_specialist"))
-        assert tools == {"profile_dataset", "run_python"}
+        assert tools == {"profile_dataset", "explore_dataset", "plot_dataset", "run_python"}
 
     def test_reporting_specialist_tools(self):
         tools = _function_tool_names(self._specialist("reporting_specialist"))

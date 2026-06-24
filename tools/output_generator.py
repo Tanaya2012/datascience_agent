@@ -23,6 +23,7 @@ from .artifact_utils import (
     make_artifact_key,
     next_version,
     parquet_bytes_to_df,
+    resolve_dataset_key,
     save_artifact,
     set_session_state,
 )
@@ -44,7 +45,7 @@ _DEFAULT_OUTPUTS_ROOT = Path(__file__).resolve().parent.parent / "outputs"
 
 
 async def generate_output(
-    dataset_artifact_key: str,
+    dataset_artifact_key: Optional[str] = None,
     include_summary_stats: bool = True,
     output_format: str = "csv",
     output_dir: Optional[str] = None,
@@ -68,6 +69,13 @@ async def generate_output(
         absolute filesystem paths of the written CSV / logs / report.
     """
     state = get_session_state(tool_context) if tool_context else AgentSessionState()
+
+    dataset_artifact_key = resolve_dataset_key(dataset_artifact_key, state)
+    if not dataset_artifact_key:
+        return OutputGeneratorResult(
+            success=False, step_name=STEP_NAME,
+            error_message="No dataset loaded yet — load a dataset first.",
+        ).model_dump(mode="json")
 
     try:
         raw = await load_artifact(dataset_artifact_key, tool_context)

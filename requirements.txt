@@ -14,6 +14,11 @@ pyarrow>=15.0.0       # required for parquet serialization
 openpyxl>=3.1.0       # Excel (.xlsx) support
 xlrd>=2.0.0           # Excel (.xls) support
 
+# EDA & visualization (M3) — in-agent stats + deterministic charts (plot_dataset).
+# matplotlib uses the headless Agg backend; scipy powers skew/kurtosis + ANOVA.
+matplotlib>=3.8.0
+scipy>=1.11.0
+
 # Optional: fuzzy deduplication
 rapidfuzz>=3.6.0
 
