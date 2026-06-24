@@ -180,3 +180,24 @@ now answers correctly end-to-end (live). 271 tests green.
 **Rejected:** reordering key to last everywhere (churns ~20 positional test calls);
 a state-reader tool for the LLM (indirection vs. a sensible default); leaving keys
 required + teaching the orchestrator to thread them through delegation text (brittle).
+
+### 2026-06-24 — D14: M4 = Feature-Engineering specialist + stats on Analysis (phased)
+**Decision:** Add a **5th specialist, Feature-Engineering** (`sub_agents/
+feature_engineering.py`), owning the mutating transforms — `encode_features`
+(one_hot/label/target), `scale_features`, and (M4b) `bin_columns`/
+`engineer_datetime_features` — plus shared `run_python`. **Statistical tests go on
+the Analysis specialist** (read-only, sibling of `explore_dataset`), not on FE.
+**Target encoding ships now** with an in-result leakage warning. The four FE
+transforms share one **`FeatureTransformResult`** and a `_finalize_transform`
+helper (mirrors the cleaning-tool checkpoint pattern). No new deps (sklearn +
+scipy already present). Delivered in phases M4a–M4d.
+**Rationale:** FE now has real tools, so it earns its shell (D9). Stat tests are
+analysis/insight (read-only) → Analysis keeps "read-only insight", FE keeps
+"dataset transforms" — clean split matching ARCHITECTURE.md. Target encoding is in
+the roadmap and useful for EDA; the warning steers users away from the CV-leakage
+footgun until M5 does it properly. A shared result + finalize helper avoids four
+near-identical result classes and ~30 lines of boilerplate per tool.
+**Rejected:** stat tests on FE (mixes read-only with mutating, diverges from
+ARCHITECTURE); deferring target encoding (roadmap lists it; warning suffices);
+per-tool result subclasses (needless proliferation); a 6th Modeling specialist now
+(no tools yet — M5).

@@ -12,6 +12,10 @@ from __future__ import annotations
 from .data_steward import build_data_steward, data_steward
 from .cleaning import build_cleaning_specialist, cleaning_specialist
 from .analysis import build_analysis_specialist, analysis_specialist
+from .feature_engineering import (
+    build_feature_engineering_specialist,
+    feature_engineering_specialist,
+)
 from .reporting import build_reporting_specialist, reporting_specialist
 
 __all__ = [
@@ -21,6 +25,8 @@ __all__ = [
     "cleaning_specialist",
     "build_analysis_specialist",
     "analysis_specialist",
+    "build_feature_engineering_specialist",
+    "feature_engineering_specialist",
     "build_reporting_specialist",
     "reporting_specialist",
 ]

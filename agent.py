@@ -23,6 +23,7 @@ from .sub_agents import (
     analysis_specialist,
     cleaning_specialist,
     data_steward,
+    feature_engineering_specialist,
     reporting_specialist,
 )
 
@@ -40,6 +41,9 @@ tools yourself — you route to a specialist and reflect on what it returns.
 - **analysis_specialist** — exploratory analysis and Q&A via Python: correlations,
   group-by/pivot, distributions, custom stats, and plots. Use for anything the
   cleaning tools don't cover, and for "what/why" questions about the data.
+- **feature_engineering_specialist** — transforms columns into model-ready
+  features: encoding (one-hot/label/target) and scaling (standard/minmax/robust).
+  Use to prepare data for modeling.
 - **reporting_specialist** — exports the cleaned dataset + audit logs + quality
   report to disk and returns file paths.
 
@@ -85,6 +89,7 @@ root_agent = LlmAgent(
         AgentTool(agent=data_steward),
         AgentTool(agent=cleaning_specialist),
         AgentTool(agent=analysis_specialist),
+        AgentTool(agent=feature_engineering_specialist),
         AgentTool(agent=reporting_specialist),
     ],
 )

@@ -126,8 +126,10 @@ class TestEnums:
         assert TaskType.run_python == "run_python"
         assert TaskType.explore_dataset == "explore_dataset"
         assert TaskType.plot_dataset == "plot_dataset"
-        # 8 cleaning tools + run_python (M1) + explore_dataset/plot_dataset (M3)
-        assert len(TaskType) == 11
+        assert TaskType.encode_features == "encode_features"
+        assert TaskType.scale_features == "scale_features"
+        # 8 cleaning tools + run_python (M1) + explore/plot (M3) + encode/scale (M4a)
+        assert len(TaskType) == 13
 
     def test_association_method_is_superset_of_correlation_method(self):
         from tools.schemas import AssociationMethod, CorrelationMethod

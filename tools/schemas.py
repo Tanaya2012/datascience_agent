@@ -41,6 +41,8 @@ class TaskType(str, Enum):
     run_python = "run_python"        # code-execution escape hatch (M1)
     explore_dataset = "explore_dataset"  # richer EDA: correlations/distributions/target (M3)
     plot_dataset = "plot_dataset"        # deterministic visualization (M3)
+    encode_features = "encode_features"  # feature engineering (M4)
+    scale_features = "scale_features"    # feature engineering (M4)
 
 
 class PipelineStatus(str, Enum):
@@ -133,6 +135,18 @@ class ChartKind(str, Enum):
     box = "box"
     correlation_heatmap = "correlation_heatmap"
     line = "line"
+
+
+class EncodingMethod(str, Enum):
+    one_hot = "one_hot"
+    label = "label"
+    target = "target"        # per-category mean of a numeric target (leaks — see M5)
+
+
+class ScalingMethod(str, Enum):
+    standard = "standard"    # zero mean, unit variance
+    minmax = "minmax"        # scale to [0, 1]
+    robust = "robust"        # median / IQR (outlier-resistant)
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +497,18 @@ class PlotResult(BaseToolResult):
     chart_kind: ChartKind | None = None
     columns_used: list[str] = []
     caption: str | None = None               # plain-English description of the chart
+
+
+class FeatureTransformResult(BaseToolResult):
+    """Shared result for the feature-engineering transforms (M4).
+
+    One mutating shape, reused by encode/scale/bin/datetime: which columns were
+    touched, which were newly created, and an op-specific detail bag.
+    """
+    operation: str = ""                      # e.g. "encode_features:one_hot"
+    columns_affected: list[str] = []         # input columns the transform acted on
+    columns_added: list[str] = []            # new columns created (one-hot, bins, dt parts)
+    detail: dict[str, Any] = {}              # method/params + any per-column notes
 
 
 # ---------------------------------------------------------------------------

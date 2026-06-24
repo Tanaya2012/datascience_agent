@@ -70,10 +70,15 @@ restart resumes session (persistence test); Kaggle wiring conditional + tested (
 - [x] Unit tests (`test_eda.py` 11, `test_visualization.py` 12) + "explore this dataset" eval
       (`evals/eda.evalset.json` + `eda_sample.csv`); live EDA eval verified green.
 
-## M4 — Feature engineering & statistics
-- [ ] Helpers: encode (one-hot/label/target), scale, bin, datetime-features, derived columns
-- [ ] Stat tests: t-test, chi², ANOVA, correlation
-- [ ] Unit tests + eval
+## M4 — Feature engineering & statistics  *(phased M4a–M4d; M4a done — D14)*
+New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new deps (sklearn+scipy present).
+- [x] **M4a** — FE specialist + `encode_features` (one-hot/label/target, leakage-warned) +
+      `scale_features` (standard/minmax/robust); shared `FeatureTransformResult` +
+      `_finalize_transform`; 5-specialist orchestrator; `tests/test_feature_eng.py` (290 green).
+- [ ] **M4b** — `bin_columns` (uniform/quantile) + `engineer_datetime_features`
+- [ ] **M4c** — `statistical_test` on Analysis: t-test, chi², ANOVA, correlation (scipy) + `"stats"` artifact
+- [ ] **M4d** — extend cross-specialist regression chain; `evals/feature_eng.evalset.json`; docs
+- [ ] derived columns → covered by `run_python` (no dedicated tool planned)
 
 ## M5 — Modeling
 - [ ] sklearn train/eval (classification/regression/clustering), split, CV, metrics, feature importance

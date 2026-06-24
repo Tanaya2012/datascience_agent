@@ -3,15 +3,15 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-21
-**Current milestone:** M3 COMPLETE (EDA & visualization) → M4 (feature engineering & statistics) next
+**Last updated:** 2026-06-24
+**Current milestone:** M4a complete (FE specialist + encode/scale) → M4b (bin & datetime) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **275 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
+  Last run: **290 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -140,14 +140,28 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   deterministic (CI-run) stand-in for the multi-agent handoff that the LLM-gated `eda` evalset
   alone didn't cover. Would have failed pre-D13 (tools then required the key).
 
+- **M4a complete (FE specialist + encode/scale — 290 tests green):** delivered phased (D14).
+  - New **Feature-Engineering specialist** (`sub_agents/feature_engineering.py`) = 5th specialist;
+    orchestrator now wraps 5 `AgentTool`s. Tools: `encode_features` (one_hot/label/target),
+    `scale_features` (standard/minmax/robust), + shared `run_python`.
+  - `tools/feature_eng.py`: mutating transforms via a shared `_finalize_transform` helper
+    (mirrors the cleaning-tool checkpoint) + `_load_current`; keyless via `resolve_dataset_key`.
+    Target encoding emits a leakage warning.
+  - Schemas: `EncodingMethod`/`ScalingMethod` enums, 2 `TaskType`s, shared
+    `FeatureTransformResult`. `tests/test_feature_eng.py` (15) verifies by reloading the
+    transformed artifact; topology tests updated for 5 specialists.
+
 ## In progress
-- (nothing mid-flight) — **M3 fully closed out.**
+- M4 underway (phased). M4a done.
 
 ## Next
-- **M4 — Feature engineering & statistics:** helpers to encode (one-hot/label/target), scale,
-  bin, derive datetime features, and add derived columns; statistical tests (t-test, chi²,
-  ANOVA, correlation). New Feature-Engineering specialist (its tools now exist → it earns its
-  shell per D9). Unit tests + eval. (Reuse `build_eda_report`'s scipy patterns for stats.)
+- **M4b — bin & datetime:** `bin_columns` (uniform/quantile, non-destructive `{col}_binned`)
+  + `engineer_datetime_features` (year/month/dow/quarter/is_weekend…) in `tools/feature_eng.py`;
+  add to FE specialist; tests.
+- **M4c — statistical tests on Analysis:** `tools/stats.py::statistical_test`
+  (t-test/anova/chi²/correlation via scipy) → `StatTestResult` + `"stats"` artifact.
+- **M4d — regression + eval + docs:** extend `test_cross_specialist.py` with encode + stat-test;
+  `evals/feature_eng.evalset.json`; CAPABILITIES/README/ARCHITECTURE.
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
