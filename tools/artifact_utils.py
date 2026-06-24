@@ -21,19 +21,26 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import pandas as pd
+from scipy import stats as _stats
 
 from .schemas import (
     AgentSessionState,
     ArtifactManifest,
+    AssociationMethod,
     CategoricalStats,
     ColumnAnomaly,
     ColumnProfile,
+    CorrelationMethod,
+    CorrelationPair,
     DatasetProfile,
     DatetimeStats,
+    DistributionStat,
+    EdaReport,
     InferredDataType,
     IssueType,
     MissingStrategy,
     NumericStats,
+    TargetRelationship,
 )
 
 if TYPE_CHECKING:
@@ -524,14 +531,6 @@ def build_eda_report(
     narrative. Operates on already-numeric columns (run cleaning first for best
     results). Pure/​deterministic; uses scipy for skew/kurtosis and ANOVA.
     """
-    from .schemas import (
-        CorrelationMethod,
-        CorrelationPair,
-        DistributionStat,
-        EdaReport,
-        TargetRelationship,
-    )
-
     corr_method = CorrelationMethod(method)
     n_rows, n_cols = df.shape
 
@@ -564,8 +563,6 @@ def build_eda_report(
         s = numeric_df[col].dropna()
         skew = kurt = None
         if len(s) >= 3 and s.nunique() > 1:
-            from scipy import stats as _stats
-
             skew = round(float(_stats.skew(s)), 4)
             kurt = round(float(_stats.kurtosis(s)), 4)  # excess (Fisher)
         distribution_stats.append(
@@ -604,8 +601,6 @@ def build_eda_report(
 
 def _build_target_relationships(df, numeric_df, numeric_cols, target, corr_method):
     """Feature↔target association: correlation (numeric target) or ANOVA F (categorical)."""
-    from .schemas import AssociationMethod, TargetRelationship
-
     rels: list[TargetRelationship] = []
     target_is_numeric = target in numeric_cols
 
@@ -626,8 +621,6 @@ def _build_target_relationships(df, numeric_df, numeric_cols, target, corr_metho
                     )
         rels.sort(key=lambda r: abs(r.association), reverse=True)
     else:
-        from scipy import stats as _stats
-
         for col in numeric_cols:
             sub = df[[col, target]].dropna()
             groups = [g[col].values for _, g in sub.groupby(target) if len(g) >= 2]

@@ -7,6 +7,7 @@ merge failures to produce a 0–100 quality score and a list of DataQualityIssue
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -170,7 +171,6 @@ async def validate_dataset(
     version = next_version(state.artifact_manifest, STEP_NAME)
     report_key = make_artifact_key(STEP_NAME, version, "report")
 
-    import json
     report_data = {
         "quality_score": round(quality_score, 2),
         "passed": passed,

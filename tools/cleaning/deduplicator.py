@@ -185,6 +185,8 @@ async def deduplicate_dataset(
 
 def _get_fuzzy_scorer(algorithm: str):
     """Return the rapidfuzz scorer function for the given algorithm name."""
+    # rapidfuzz is an optional dep (fuzzy dedup only) — imported lazily so
+    # exact-only deduplication works even if it isn't installed.
     from rapidfuzz import fuzz  # type: ignore[import]
 
     scorers = {

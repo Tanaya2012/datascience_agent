@@ -18,6 +18,7 @@ import matplotlib
 
 matplotlib.use("Agg")  # headless; must be set before pyplot import
 import matplotlib.pyplot as plt  # noqa: E402
+import pandas as pd  # noqa: E402
 from google.adk.tools import ToolContext  # type: ignore[import]  # noqa: E402
 
 from .artifact_utils import (  # noqa: E402
@@ -230,8 +231,6 @@ def _require(condition, message: str) -> None:
 
 def _numeric(df, col):
     """Return a column coerced to numeric, raising if it isn't numeric-like."""
-    import pandas as pd
-
     if col not in df.columns:
         raise KeyError(f"Column '{col}' not found.")
     series = pd.to_numeric(df[col], errors="coerce")

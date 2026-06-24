@@ -28,6 +28,7 @@ from .artifact_utils import (
     set_session_state,
 )
 from .schemas import (
+    AgentSessionState,
     DatasetLoaderResult,
     DatasetVersion,
     PipelineStatus,
@@ -64,7 +65,6 @@ async def dataset_loader(
         Serialized DatasetLoaderResult dict
     """
     state = get_session_state(tool_context) if tool_context else None
-    from .schemas import AgentSessionState
     if state is None:
         state = AgentSessionState()
 
