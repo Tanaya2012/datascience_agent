@@ -43,6 +43,8 @@ class TaskType(str, Enum):
     plot_dataset = "plot_dataset"        # deterministic visualization (M3)
     encode_features = "encode_features"  # feature engineering (M4)
     scale_features = "scale_features"    # feature engineering (M4)
+    bin_columns = "bin_columns"          # feature engineering (M4b)
+    engineer_datetime_features = "engineer_datetime_features"  # feature engineering (M4b)
 
 
 class PipelineStatus(str, Enum):
@@ -147,6 +149,11 @@ class ScalingMethod(str, Enum):
     standard = "standard"    # zero mean, unit variance
     minmax = "minmax"        # scale to [0, 1]
     robust = "robust"        # median / IQR (outlier-resistant)
+
+
+class BinningStrategy(str, Enum):
+    uniform = "uniform"      # equal-width bins (pd.cut)
+    quantile = "quantile"    # equal-frequency bins (pd.qcut)
 
 
 # ---------------------------------------------------------------------------

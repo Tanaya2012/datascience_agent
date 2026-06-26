@@ -3,15 +3,15 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-24
-**Current milestone:** M4a complete (FE specialist + encode/scale) → M4b (bin & datetime) next
+**Last updated:** 2026-06-25
+**Current milestone:** M4a+M4b complete (FE specialist + all 4 transforms) → M4c (statistical tests) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **290 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
+  Last run: **297 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -151,13 +151,16 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
     `FeatureTransformResult`. `tests/test_feature_eng.py` (15) verifies by reloading the
     transformed artifact; topology tests updated for 5 specialists.
 
+- **M4b complete (bin & datetime — 297 tests green):** `tools/feature_eng.py` gains
+  `bin_columns` (quantile via `pd.qcut`/uniform via `pd.cut`; non-destructive `{col}_binned`)
+  and `engineer_datetime_features` (year/month/day/dayofweek/quarter/is_weekend, +hour when
+  present; coerces to datetime; adds `{col}_{feature}`). Both on the FE specialist (now 4
+  transforms + `run_python`). `tests/test_feature_eng.py` extended (24 total).
+
 ## In progress
-- M4 underway (phased). M4a done.
+- M4 underway (phased). M4a + M4b done.
 
 ## Next
-- **M4b — bin & datetime:** `bin_columns` (uniform/quantile, non-destructive `{col}_binned`)
-  + `engineer_datetime_features` (year/month/dow/quarter/is_weekend…) in `tools/feature_eng.py`;
-  add to FE specialist; tests.
 - **M4c — statistical tests on Analysis:** `tools/stats.py::statistical_test`
   (t-test/anova/chi²/correlation via scipy) → `StatTestResult` + `"stats"` artifact.
 - **M4d — regression + eval + docs:** extend `test_cross_specialist.py` with encode + stat-test;

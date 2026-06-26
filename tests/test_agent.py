@@ -85,7 +85,13 @@ class TestSpecialistTooling:
 
     def test_feature_engineering_specialist_tools(self):
         tools = _function_tool_names(self._specialist("feature_engineering_specialist"))
-        assert tools == {"encode_features", "scale_features", "run_python"}
+        assert tools == {
+            "encode_features",
+            "scale_features",
+            "bin_columns",
+            "engineer_datetime_features",
+            "run_python",
+        }
 
     def test_reporting_specialist_tools(self):
         tools = _function_tool_names(self._specialist("reporting_specialist"))

@@ -47,7 +47,13 @@ BUILDERS = {
     ),
     "feature_engineering_specialist": (
         build_feature_engineering_specialist,
-        {"encode_features", "scale_features", "run_python"},
+        {
+            "encode_features",
+            "scale_features",
+            "bin_columns",
+            "engineer_datetime_features",
+            "run_python",
+        },
     ),
     "reporting_specialist": (build_reporting_specialist, {"generate_output"}),
 }

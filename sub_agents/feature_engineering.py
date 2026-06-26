@@ -12,7 +12,12 @@ from __future__ import annotations
 from google.adk.agents import LlmAgent  # type: ignore[import]
 
 from ..configs.model_config import resolve_model
-from ..tools.feature_eng import encode_features, scale_features
+from ..tools.feature_eng import (
+    bin_columns,
+    encode_features,
+    engineer_datetime_features,
+    scale_features,
+)
 from ..tools.code_exec.run_python import run_python
 
 _INSTRUCTION = """
@@ -27,12 +32,19 @@ Your tools:
   it's for exploration; refit within CV for modeling).
 - `scale_features` — numeric scaling: `standard` (z-score), `minmax` ([0,1]), or
   `robust` (median/IQR, outlier-resistant).
+- `bin_columns` — discretize numeric columns into `n_bins` bins (`quantile` =
+  equal-frequency, `uniform` = equal-width); adds a `{col}_binned` column
+  (non-destructive).
+- `engineer_datetime_features` — extract calendar parts (year/month/day/
+  dayofweek/quarter/is_weekend, and hour when present) from datetime columns,
+  adding `{col}_{feature}` columns.
 
 Rules:
 - These tools operate on the **current dataset automatically** — you don't need a
-  dataset artifact key; just pass `method` (and `columns`/`target` as needed). If
-  `columns` is omitted, encoders default to all categorical columns and scalers to
-  all numeric columns.
+  dataset artifact key; just pass the method/params (and `columns`/`target` as
+  needed). If `columns` is omitted, encoders default to all categorical columns;
+  scalers and binning to all numeric columns; datetime features to all
+  datetime-typed columns.
 - After each transform, summarize what changed (which columns, any new columns
   created) so the orchestrator can reflect.
 - For anything these tools don't cover (custom derived columns, arithmetic), use
@@ -48,11 +60,17 @@ def build_feature_engineering_specialist(model=None) -> LlmAgent:
         name="feature_engineering_specialist",
         model=model or resolve_model(),
         description=(
-            "Transforms columns into model-ready features — encoding and scaling "
-            "(binning & datetime features next) — each as an audited dataset version."
+            "Transforms columns into model-ready features — encoding, scaling, binning, "
+            "and datetime feature extraction — each as an audited dataset version."
         ),
         instruction=_INSTRUCTION,
-        tools=[encode_features, scale_features, run_python],
+        tools=[
+            encode_features,
+            scale_features,
+            bin_columns,
+            engineer_datetime_features,
+            run_python,
+        ],
     )
 
 

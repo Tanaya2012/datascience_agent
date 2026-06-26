@@ -23,7 +23,12 @@ from tools.artifact_utils import (
     set_session_state,
 )
 from tools.schemas import AgentSessionState
-from tools.feature_eng import encode_features, scale_features
+from tools.feature_eng import (
+    bin_columns,
+    encode_features,
+    engineer_datetime_features,
+    scale_features,
+)
 
 
 @pytest.fixture()
@@ -153,6 +158,88 @@ async def test_scale_skips_non_numeric(mock_ctx, fe_df):
     assert res["success"] is True
     assert res["columns_affected"] == ["price"]
     assert any("not numeric" in w for w in res["warnings"])
+
+
+# --- bin_columns ---------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_bin_quantile_adds_binned_column(mock_ctx, fe_df):
+    await _seed(mock_ctx, fe_df)
+    res = await bin_columns(columns=["price"], n_bins=4, strategy="quantile", tool_context=mock_ctx)
+    assert res["success"] is True
+    assert res["columns_added"] == ["price_binned"]
+    assert res["output_artifact_key"].startswith("bin_columns__v1__dataset")
+    df = await _current_df(mock_ctx)
+    assert "price" in df.columns and "price_binned" in df.columns  # non-destructive
+    assert df["price_binned"].nunique() <= 4
+
+
+@pytest.mark.asyncio
+async def test_bin_uniform_defaults_to_all_numeric(mock_ctx, fe_df):
+    await _seed(mock_ctx, fe_df)
+    res = await bin_columns(n_bins=3, strategy="uniform", tool_context=mock_ctx)
+    assert res["success"] is True
+    assert set(res["columns_added"]) == {"price_binned", "revenue_binned"}
+
+
+@pytest.mark.asyncio
+async def test_bin_bad_strategy_and_n_bins(mock_ctx, fe_df):
+    await _seed(mock_ctx, fe_df)
+    assert (await bin_columns(strategy="kmeans", tool_context=mock_ctx))["success"] is False
+    assert (await bin_columns(n_bins=1, tool_context=mock_ctx))["success"] is False
+
+
+# --- engineer_datetime_features ------------------------------------------------
+
+@pytest.fixture()
+def dt_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "signup": pd.to_datetime(
+                ["2021-01-02", "2021-06-15", "2022-03-20", "2022-12-25", "2023-07-04"]
+            ),
+            "amount": [10.0, 20.0, 30.0, 40.0, 50.0],
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_datetime_features_default_set(mock_ctx, dt_df):
+    await _seed(mock_ctx, dt_df)
+    res = await engineer_datetime_features(tool_context=mock_ctx)  # auto-detect datetime cols
+    assert res["success"] is True
+    assert res["columns_affected"] == ["signup"]
+    expected = {f"signup_{f}" for f in ("year", "month", "day", "dayofweek", "quarter", "is_weekend")}
+    assert expected.issubset(set(res["columns_added"]))
+    df = await _current_df(mock_ctx)
+    assert df.loc[0, "signup_year"] == 2021
+    # 2021-01-02 was a Saturday → is_weekend = 1.
+    assert df.loc[0, "signup_is_weekend"] == 1
+
+
+@pytest.mark.asyncio
+async def test_datetime_features_subset_and_coercion(mock_ctx):
+    df = pd.DataFrame({"d": ["2020-05-01", "2020-05-02", "bad"], "x": [1, 2, 3]})
+    await _seed(mock_ctx, df)
+    res = await engineer_datetime_features(columns=["d"], features=["year", "month"], tool_context=mock_ctx)
+    assert res["success"] is True
+    assert set(res["columns_added"]) == {"d_year", "d_month"}
+
+
+@pytest.mark.asyncio
+async def test_datetime_unknown_feature_errors(mock_ctx, dt_df):
+    await _seed(mock_ctx, dt_df)
+    res = await engineer_datetime_features(columns=["signup"], features=["fortnight"], tool_context=mock_ctx)
+    assert res["success"] is False
+    assert "Unknown features" in res["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_datetime_no_datetime_columns_errors(mock_ctx, fe_df):
+    await _seed(mock_ctx, fe_df)  # no datetime columns, none passed
+    res = await engineer_datetime_features(tool_context=mock_ctx)
+    assert res["success"] is False
+    assert "No datetime columns" in res["error_message"]
 
 
 # --- keyless / no-dataset contract --------------------------------------------

@@ -75,7 +75,8 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
 - [x] **M4a** — FE specialist + `encode_features` (one-hot/label/target, leakage-warned) +
       `scale_features` (standard/minmax/robust); shared `FeatureTransformResult` +
       `_finalize_transform`; 5-specialist orchestrator; `tests/test_feature_eng.py` (290 green).
-- [ ] **M4b** — `bin_columns` (uniform/quantile) + `engineer_datetime_features`
+- [x] **M4b** — `bin_columns` (uniform/quantile, non-destructive) + `engineer_datetime_features`
+      (calendar parts, auto-coerce); FE specialist now has all 4 transforms (297 green)
 - [ ] **M4c** — `statistical_test` on Analysis: t-test, chi², ANOVA, correlation (scipy) + `"stats"` artifact
 - [ ] **M4d** — extend cross-specialist regression chain; `evals/feature_eng.evalset.json`; docs
 - [ ] derived columns → covered by `run_python` (no dedicated tool planned)
