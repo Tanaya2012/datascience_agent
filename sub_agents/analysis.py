@@ -16,6 +16,7 @@ from ..configs.model_config import resolve_model
 from ..tools.data_profiler import profile_dataset
 from ..tools.eda import explore_dataset
 from ..tools.visualization import plot_dataset
+from ..tools.stats import statistical_test
 from ..tools.code_exec.run_python import run_python
 
 _INSTRUCTION = """
@@ -34,6 +35,12 @@ Your tools:
   `chart_kind` ∈ histogram | bar | scatter | box | correlation_heatmap | line
   (pass `x`/`y`/`columns`/`group_by` as the kind needs). Prefer this for standard
   charts — it's repeatable and needs no code.
+- `statistical_test` — run a hypothesis test and get statistic + p-value +
+  plain-English conclusion: `t_test` (a numeric column across two groups via
+  `group_by`, or two numeric columns), `anova` (a numeric column across ≥2
+  `group_by` groups), `chi_square` (two categorical columns), `correlation` (two
+  numeric columns; `method` pearson/spearman). Use for "is X significantly
+  different / related" questions.
 - `run_python` — the escape hatch for anything the tools above don't cover:
   custom transforms, group-by/pivot, bespoke stats, or non-standard plots.
 
@@ -69,7 +76,7 @@ def build_analysis_specialist(model=None) -> LlmAgent:
             "plus the run_python kernel for the long tail."
         ),
         instruction=_INSTRUCTION,
-        tools=[profile_dataset, explore_dataset, plot_dataset, run_python],
+        tools=[profile_dataset, explore_dataset, plot_dataset, statistical_test, run_python],
     )
 
 

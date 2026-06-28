@@ -45,6 +45,7 @@ class TaskType(str, Enum):
     scale_features = "scale_features"    # feature engineering (M4)
     bin_columns = "bin_columns"          # feature engineering (M4b)
     engineer_datetime_features = "engineer_datetime_features"  # feature engineering (M4b)
+    statistical_test = "statistical_test"  # hypothesis tests (M4c)
 
 
 class PipelineStatus(str, Enum):
@@ -154,6 +155,13 @@ class ScalingMethod(str, Enum):
 class BinningStrategy(str, Enum):
     uniform = "uniform"      # equal-width bins (pd.cut)
     quantile = "quantile"    # equal-frequency bins (pd.qcut)
+
+
+class StatTestType(str, Enum):
+    t_test = "t_test"            # two-group mean comparison (ttest_ind)
+    anova = "anova"             # one-way ANOVA across groups (f_oneway)
+    chi_square = "chi_square"   # independence of two categoricals (chi2_contingency)
+    correlation = "correlation"  # association of two numeric columns (pearson/spearman)
 
 
 # ---------------------------------------------------------------------------
@@ -516,6 +524,26 @@ class FeatureTransformResult(BaseToolResult):
     columns_affected: list[str] = []         # input columns the transform acted on
     columns_added: list[str] = []            # new columns created (one-hot, bins, dt parts)
     detail: dict[str, Any] = {}              # method/params + any per-column notes
+
+
+class StatTestReport(BaseModel):
+    """Outcome of a single statistical test (M4c)."""
+    test_type: StatTestType
+    columns: list[str] = []                  # columns involved
+    group_by: str | None = None              # grouping column, if any
+    statistic: float | None = None           # test statistic (t / F / chi² / r)
+    p_value: float | None = None
+    dof: float | None = None                 # degrees of freedom, where applicable
+    significant: bool = False                # p < alpha
+    alpha: float = 0.05
+    detail: dict[str, Any] = {}              # group means, method, contingency shape, …
+    interpretation: str = ""                 # plain-English conclusion
+
+
+class StatTestResult(BaseToolResult):
+    """Result of statistical_test — read-only hypothesis test (M4c)."""
+    report: StatTestReport | None = None
+    stats_artifact_key: str | None = None    # JSON artifact holding the StatTestReport
 
 
 # ---------------------------------------------------------------------------

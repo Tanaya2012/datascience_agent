@@ -93,7 +93,7 @@ def make_schema_digest(df: pd.DataFrame) -> str:
 def make_artifact_key(
     step_name: str,
     version: int,
-    artifact_type: Literal["dataset", "profile", "eda", "log", "report", "plot"],
+    artifact_type: Literal["dataset", "profile", "eda", "stats", "log", "report", "plot"],
 ) -> str:
     """
     Build a canonical artifact key.

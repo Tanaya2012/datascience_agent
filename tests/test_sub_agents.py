@@ -43,7 +43,7 @@ BUILDERS = {
     ),
     "analysis_specialist": (
         build_analysis_specialist,
-        {"profile_dataset", "explore_dataset", "plot_dataset", "run_python"},
+        {"profile_dataset", "explore_dataset", "plot_dataset", "statistical_test", "run_python"},
     ),
     "feature_engineering_specialist": (
         build_feature_engineering_specialist,

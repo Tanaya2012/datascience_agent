@@ -77,7 +77,8 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
       `_finalize_transform`; 5-specialist orchestrator; `tests/test_feature_eng.py` (290 green).
 - [x] **M4b** — `bin_columns` (uniform/quantile, non-destructive) + `engineer_datetime_features`
       (calendar parts, auto-coerce); FE specialist now has all 4 transforms (297 green)
-- [ ] **M4c** — `statistical_test` on Analysis: t-test, chi², ANOVA, correlation (scipy) + `"stats"` artifact
+- [x] **M4c** — `statistical_test` on Analysis: t-test/anova/chi²/correlation (scipy) →
+      `StatTestResult` + `"stats"` artifact + plain-English interpretation (309 green)
 - [ ] **M4d** — extend cross-specialist regression chain; `evals/feature_eng.evalset.json`; docs
 - [ ] derived columns → covered by `run_python` (no dedicated tool planned)
 

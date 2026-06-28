@@ -3,15 +3,15 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-25
-**Current milestone:** M4a+M4b complete (FE specialist + all 4 transforms) → M4c (statistical tests) next
+**Last updated:** 2026-06-27
+**Current milestone:** M4a–M4c complete → M4d (regression guard + eval + docs) closes M4
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **297 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
+  Last run: **309 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -157,14 +157,21 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   present; coerces to datetime; adds `{col}_{feature}`). Both on the FE specialist (now 4
   transforms + `run_python`). `tests/test_feature_eng.py` extended (24 total).
 
+- **M4c complete (statistical tests — 309 tests green):** `tools/stats.py::statistical_test`
+  on the **Analysis** specialist (read-only, mirrors `explore_dataset`): `t_test`
+  (`ttest_ind`, Welch), `anova` (`f_oneway`), `chi_square` (`chi2_contingency`), `correlation`
+  (`pearsonr`/`spearmanr`). Returns `StatTestResult` with statistic/p-value/significant +
+  plain-English `interpretation`, saved as a `StatTestReport` JSON under a new `"stats"`
+  artifact type. `tests/test_stats.py` (14). Analysis specialist now has 5 tools.
+
 ## In progress
-- M4 underway (phased). M4a + M4b done.
+- M4 underway (phased). M4a–M4c done; M4d remains.
 
 ## Next
-- **M4c — statistical tests on Analysis:** `tools/stats.py::statistical_test`
-  (t-test/anova/chi²/correlation via scipy) → `StatTestResult` + `"stats"` artifact.
-- **M4d — regression + eval + docs:** extend `test_cross_specialist.py` with encode + stat-test;
-  `evals/feature_eng.evalset.json`; CAPABILITIES/README/ARCHITECTURE.
+- **M4d (closes M4) — regression + eval + docs:** extend `tests/test_cross_specialist.py`
+  with `encode_features` + `statistical_test` steps; add `evals/feature_eng.evalset.json`
+  (+ fixture, wired into the token→fixture map); update `CAPABILITIES.md`/`README.MD`
+  (5 specialists; FE + stats) and `ARCHITECTURE.md` (drop the "FE deferred" note).
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
