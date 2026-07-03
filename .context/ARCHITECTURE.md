@@ -51,18 +51,53 @@ comes from routing **every** data mutation through a versioned artifact + log.
 - **Orchestrator** — converses, plans, routes to specialists, reflects on results.
 - **Specialists** — focused `LlmAgent`s, each with a small relevant toolset,
   exposed to the orchestrator via `AgentTool`:
-  - **Data Steward** — `dataset_loader`, Kaggle MCP, uploaded-file ingestion, `profile_dataset` (+ future SQL/JSON).
+  - **Data Steward** — `dataset_loader`, Kaggle fetch (`kaggle` library, D16), uploaded-file ingestion, `profile_dataset` (+ future SQL/JSON).
   - **Cleaning** — `handle_missing_values`, `standardize_formats`, `deduplicate_dataset`, `merge_datasets`, `validate_dataset`.
   - **Analysis/EDA** — deep profiling, correlations, statistical tests, visualization (+ `run_python`).
   - **Feature-Engineering** — encode/scale/bin/derive/datetime-features (+ `run_python`).
   - **Modeling** — sklearn train/eval, CV, metrics, feature importance (+ `run_python`).
   - **Reporting** — narrative synthesis, report + notebook export, `generate_output`.
 
+## State-mediated context (delegation amnesia)
+
+Each `AgentTool` delegation runs the specialist in a **fresh sub-runner** (ADK spins
+up a new `Runner` + child session per call), so specialists do **not** remember
+their prior invocations within a session — only two things persist across the
+boundary: the **shared session state** (`AgentSessionState`, copied in and
+delta-forwarded back) and the **`run_python` kernel** (keyed by session id). The
+orchestrator↔specialist channel otherwise carries only natural-language
+request/response summaries, which are lossy and token-expensive per hop.
+
+This is an **accepted design property**, not a bug: fighting it (persistent child
+sessions) is deep ADK surgery. The durable, lossless channel is **shared state** —
+the same insight that made D13 a one-function fix. So the direction is to carry
+structured artifacts *through state* rather than re-summarizing them: the model
+registry (M5) and analysis/stat findings (M6) move into `AgentSessionState` so
+downstream specialists read them directly instead of via prose. What stays in NL is
+intent/plan, which is naturally conversational.
+
+## MCP connectors — selection criterion (D16)
+
+`sub_agents/_mcp.py` holds the reusable pattern: **register a stdio `McpToolset` only
+when its launcher (`uvx`) and credentials are both present**, so a dead server never
+spams per-turn errors. Its first user (kaggle-mcp) was removed in D16 — the module is
+being generalized into a gated connector factory for future servers.
+
+When to use MCP vs. an in-process tool:
+
+- **Control plane → MCP.** Metadata, schema discovery, search results, small query
+  results, remote side effects — anything whose payload travels *through* the
+  protocol. Good future fits: SQL servers (Postgres/SQLite), web-fetch.
+- **Data plane → in-process tools + artifacts.** Bulk tabular movement and local-file
+  delivery. A server that writes files to *its own* filesystem and returns only a
+  message forces the client to scrape for outputs (kaggle-mcp's failure mode —
+  hardcoded uv-cache path, no Resources capability, no path in the response).
+
 ## State & storage
 
 - **Runtime agent state** — `AgentSessionState` (Pydantic, in `tools/schemas.py`),
   serialized to `tool_context.state["pipeline_state"]`. To be extended with
-  analysis findings, model registry, and plan/todo.
+  analysis findings, model registry, and plan/todo (see "state-mediated context").
 - **Artifact + audit layer** — `tools/artifact_utils.py`: Parquet versions,
   MD5 checksums, schema digests, per-step manifest, `TransformationLog`.
   Dual storage (ADK ArtifactService primary, `artifacts/` local fallback).

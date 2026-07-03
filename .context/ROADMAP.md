@@ -83,17 +83,44 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
       `evals/feature_eng.evalset.json` (live green); CAPABILITIES/README/ARCHITECTURE finalized
 - [ ] derived columns → covered by `run_python` (no dedicated tool planned)
 
+## M4.5 — Hardening (before M5)
+Rationale: every real-usage session has surfaced a real bug (D13, D15). Do a deliberate
+adversarial pass before modeling chains more mutations together.
+- [ ] **Bug bash** — drive 5–10 messy/realistic scenarios through the live agent
+      (`adk web`), including uploaded-file drag-drop; log failures.
+- [ ] **Cleaning contract audit** — one pass over all mutating tools against two rules:
+      *never mutate a column the caller didn't name; never silently lose data*; fix
+      violations + add contract tests. (Extends D15.)
+- [ ] **Promote findings → evals/regression tests** — turn the best bug-bash scenarios
+      into a **multi-turn** evalset case (propose→approve→execute→verify) and an
+      **error-recovery** case (tool `success:false` → agent surfaces, doesn't loop —
+      the transcript-#12 failure mode). One effort, two artifacts.
+
 ## M5 — Modeling
 - [ ] sklearn train/eval (classification/regression/clustering), split, CV, metrics, feature importance
 - [ ] Model-artifact persistence; optional AutoML-lite
+- [ ] **Model registry in `AgentSessionState`** — so trained models flow between specialists
+      via shared state, not lossy NL summaries (mitigates delegation amnesia; see ARCHITECTURE
+      "state-mediated context")
+- [ ] **Kernel eviction** — idle-TTL or shutdown-on-session-end in the `run_python` kernel
+      registry (long-lived `adk web` currently leaks one subprocess per session)
 - [ ] Unit tests + "predict churn" eval
 
-## M6 — Reporting, memory, reflection, polish
+## M6 — Reporting, memory, reflection, polish  *(phase this — it's ~3 milestones in a coat)*
 - [ ] Full analysis report + reproducible notebook export
 - [ ] Cross-session runtime memory (dataset context, decisions, preferences)
 - [ ] Reflection loop (plan → execute → reflect → self-correct; consider `LoopAgent`)
+- [ ] **Plan-schema decision** — either wire `TaskConfig`/`PlannedTask` into the reflection
+      loop (structured "what step am I on?") or delete them; stop shipping vestigial schema
+- [ ] **Structured findings in `AgentSessionState`** — EDA/stat results carried as state, not
+      re-summarized per hop (delegation-amnesia mitigation)
+- [ ] **Autonomy levels** — user-selectable orchestrator mode: confirm-each-step /
+      plan-level approval / autonomous (removes the "must pre-authorize transforms" friction
+      seen in M4d evals)
 - [ ] L4 container executor backend (same `CodeExecutor` interface)
 - [ ] Expanded eval suite + regression pass
+- [ ] **D8 artifact-storage alignment** (do before report/notebook export needs previewable,
+      linkable artifacts) — ADK-native versioning + real extensions
 
 ## Backlog — deferred enhancements (not milestone-bound)
 Cross-cutting gaps surfaced during development; slot into a milestone when prioritized.
@@ -105,3 +132,15 @@ Cross-cutting gaps surfaced during development; slot into a milestone when prior
       audited tool to drop/keep named columns (e.g. remove an uninformative `Currency`
       column), instead of relying on `handle_missing_values`' threshold side-effect or
       `run_python`. (Surfaced in D15.)
+- [ ] **ADK coupling: cap + de-couple** — pin `google-adk>=2.1,<3` so upgrades are deliberate;
+      migrate test assertions off private attrs (e.g. `_connection_params`) where a public
+      surface exists; keep new ADK touchpoints behind existing abstractions (CodeExecutor ABC,
+      `configs/model_config.py`, `sub_agents/_mcp.py`). Maintenance tax, not a fire.
+- [ ] **Kaggle via `kaggle` library (D16)** — creds now present and the MCP path was
+      live-verified 2026-07-03: `kaggle-mcp` exposes only `prepare_kaggle_dataset`,
+      hardcodes downloads inside its uv-cache install dir, and returns no path — so it's
+      being **replaced** with a direct `kaggle`-library Data Steward tool (download to
+      `artifacts/kaggle/<slug>/`, competitions + datasets + search, mocked tests).
+      Slice also: generalize `_mcp.py` into a gated stdio-connector factory; update
+      CLAUDE.md / CAPABILITIES.md Kaggle sections; adapt `scripts/smoke_test_kaggle.py`;
+      add `kaggle` dep. See DECISIONS D16.

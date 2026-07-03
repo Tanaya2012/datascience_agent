@@ -230,3 +230,44 @@ guards are robust regardless of LLM behavior); auto-substituting a different dat
 silently (predictable refuse-and-warn preferred).
 **Noted (not fixed):** no tool does value-level text normalization (e.g. Region
 capitalization) or explicit column removal — those only exist via `run_python` today.
+
+### 2026-07-03 — D16: replace kaggle-mcp with the official `kaggle` library; generalize `_mcp.py`
+**Context:** Kaggle creds arrived (`~/.kaggle/kaggle.json`) and the MCP path was
+live-verified for the first time. Findings: `uvx kaggle-mcp` exposes exactly **one**
+tool, `prepare_kaggle_dataset(competition_id)` — not the `search_kaggle_datasets` /
+`download_kaggle_dataset` pair the code was wired for; it is a thin wrapper over the
+official `kaggle` package that hardcodes downloads to `Path(__file__).parent/data/<id>`
+**inside its own uv-cache install dir**, returns only a success string (never the
+path), implements no MCP Resources capability (`resources/list` → "Method not found"),
+and offers no way to redirect output. An uncommitted bridge (tool rename +
+`**`-globbing the uv cache from `dataset_loader`) worked live but was fragile:
+the glob can match stale uv archives (observed: the running server and the on-disk
+`kaggle_mcp` source resolved to *different* `archive-v0/<hash>` dirs), and the
+nondeterministic first-file pick loaded titanic `test.csv` (418×11, no target)
+instead of `train.csv`.
+**Decision:**
+- Drop kaggle-mcp. Implement Kaggle access via the official `kaggle` library as a
+  normal deterministic Data Steward tool: authenticate from the same
+  `~/.kaggle/kaggle.json`, download/unzip to a **controlled** path
+  (`artifacts/kaggle/<slug>/`), return file paths in the ToolResult; mockable in
+  tests; supports competitions **and** datasets **and** search (capabilities the MCP
+  never had). New dep: `kaggle` in `dsagent` + requirements.
+- Revert the uncommitted MCP-bridge code changes (`sub_agents/_mcp.py`,
+  `sub_agents/data_steward.py`, `tests/test_mcp.py`, `tools/dataset_loader.py`).
+- **Generalize `sub_agents/_mcp.py`** instead of deleting it: keep `uvx_available()` +
+  credential gating and refactor `maybe_kaggle_toolset()` into a generic gated
+  stdio-connector factory (`maybe_stdio_toolset(command, args, tool_filter, gate)`)
+  for future servers.
+**Connector criterion (architecture rule):** MCP fits the **control plane** — metadata,
+query results, search, remote side effects, i.e. payloads that travel *through* the
+protocol (good future fits: SQL servers, web-fetch). It does **not** fit the **data
+plane** — bulk local-file delivery the client must then locate on disk; that stays
+in-process tools + Parquet artifacts. kaggle-mcp sat on the wrong side of this line,
+which is exactly why it forced cache-scraping.
+**Verified:** live auth + titanic download through the MCP succeeded (creds and server
+work; the *interface* is what's inadequate); MCP server capability probe confirmed
+tools-only; 315 tests green.
+**Rejected:** keep-MCP + harden the bridge (`uv tool install` for a stable path,
+deterministic file ranking) — still reaches into another environment's private
+filesystem; forking kaggle-mcp to add Resources/path-arg — maintenance burden for a
+wrapper that subtracts capability from the library underneath.

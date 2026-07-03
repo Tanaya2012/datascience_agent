@@ -186,20 +186,39 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   column removal — only via `run_python`.
 
 ## In progress
-- (nothing mid-flight) — **M4 fully closed out** (+ D15 cleaning bugfix).
+- **Kaggle replacement slice (D16, 2026-07-03):** decision recorded, ready to implement.
+  Creds landed and the Kaggle MCP was live-verified for the first time — the server
+  works but its interface is inadequate (single `prepare_kaggle_dataset` tool, downloads
+  hardcoded inside its uv-cache install dir, no path returned, no MCP Resources), which
+  forced a fragile cache-globbing bridge (since reverted; it also picked titanic
+  `test.csv` over `train.csv`). **Next slice:** direct `kaggle`-library Data Steward
+  tool + generalize `_mcp.py` into a gated stdio-connector factory + docs/smoke-test
+  updates. (A stale MCP-era `scripts/smoke_test_kaggle.py` was deleted; write the
+  library-based one fresh in the slice — copy the harness from
+  `scripts/smoke_test_routing.py`.) See DECISIONS **D16** + ROADMAP backlog entry.
+- Otherwise: **M4 fully closed out** (+ D15 cleaning bugfix).
 
 ## Next
-- **M5 — Modeling:** new Modeling specialist (6th) with sklearn train/eval
-  (classification/regression/clustering), train/test split, cross-validation, metrics,
-  feature importance; model-artifact persistence; "predict churn" eval. Reuse the
-  mutating/read-only tool templates + `FeatureTransformResult`/report patterns. Likely phased.
+- **Kaggle D16 implementation slice** (see "In progress" above) — small, do first.
+- **M4.5 — Hardening (recommended before M5):** bug bash (5–10 messy scenarios through the
+  live agent + upload drag-drop), cleaning-contract audit (never mutate un-named columns /
+  never silently lose data — extends D15), and promote findings into a multi-turn +
+  error-recovery evalset. Rationale: every real-usage session so far surfaced a real bug
+  (D13, D15). See ROADMAP "M4.5".
+- **M5 — Modeling:** new Modeling specialist (6th) with sklearn train/eval; model registry in
+  `AgentSessionState` (state-mediated context, not NL summaries); kernel eviction; "predict
+  churn" eval. Reuse the mutating/read-only tool templates + `FeatureTransformResult`/report
+  patterns. Phased.
+- **M6:** phase it — reporting/notebook export, cross-session memory, reflection (+ plan-schema
+  decision), autonomy levels, L4 executor, and D8 artifact alignment. See ROADMAP.
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
   Runner on gemini-2.0-flash → called `dataset_loader` + `profile_dataset`, correct final
   answer. The conversational/tool-calling loop works end-to-end.
-- ~~Kaggle MCP broken (`uv` absent)~~ — `uv` installed in M2b; toolset now registers
-  conditionally. Search/download still need Kaggle credentials to run live.
+- ~~Kaggle MCP broken (`uv` absent)~~ — `uv` installed in M2b; toolset registers
+  conditionally. Live verification (2026-07-03) then showed the wired tool names never
+  existed on the server → **kaggle-mcp is being replaced by the `kaggle` library (D16)**.
 - Env `dsagent` (conda) can run the suite — see "How to run" above. Earlier "can't run
   here" constraint is resolved.
 - ~~`MCPToolset` deprecated~~ — resolved in M2a: `agent.py` no longer imports it; Kaggle MCP
@@ -207,8 +226,9 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - ~~`adk web` uploads unusable~~ — resolved in M2b: `ingest_uploaded_file` (Data Steward)
   reads inline-Part / artifact uploads. Inline + artifact paths unit-tested; a real `adk web`
   drag-drop round-trip is still worth a manual smoke once creds/UI are exercised.
-- **Kaggle live path** needs `~/.kaggle/kaggle.json` + `~/.local/bin` on PATH (for `uvx`).
-  Absent both, Data Steward simply omits the Kaggle tools (by design).
+- **Kaggle live path:** `~/.kaggle/kaggle.json` present since 2026-07-03; auth verified
+  live (titanic downloaded). Gating (omit tools when creds absent) stays as a pattern,
+  but the transport moves from MCP to the `kaggle` library — see D16.
 - ~~`schemas/` empty dir~~ — removed in M2a. Real models live in `tools/schemas.py`.
 - `TaskConfig`/`PlannedTask` in `tools/schemas.py` is vestigial (unused by `agent.py`);
   planning will live in the orchestrator prompt for now.
