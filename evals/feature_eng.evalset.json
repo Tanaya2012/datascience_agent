@@ -1,0 +1,31 @@
+{
+  "eval_set_id": "feature_eng",
+  "name": "feature_eng",
+  "description": "Feature-engineering routing: a one-hot encode request should reach the Feature-Engineering specialist and produce the expected dummy columns. The {{EDA_CSV}} token is replaced with the absolute path to evals/fixtures/eda_sample.csv at run time (see tests/test_eval.py).",
+  "eval_cases": [
+    {
+      "eval_id": "one_hot_encode_region",
+      "conversation": [
+        {
+          "invocation_id": "one_hot_encode_region_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Load the local CSV at {{EDA_CSV}}, then one-hot encode the region column — go ahead and do it now without asking me to confirm. List the resulting column names."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "After one-hot encoding region, the columns are units_sold, revenue, discount_pct, region_North, region_South, and region_West."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

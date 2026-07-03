@@ -44,6 +44,21 @@ STEP_NAME = "standardize_formats"
 _CURRENCY_RE = re.compile(r"[$€£¥₹₽]\s*|,(?=\d{3})")
 _NUMERIC_CLEANUP_RE = re.compile(r"[^\d.\-+eE]")
 
+# A date parse (auto or explicit-format override) is "destructive" if it would turn
+# more than this fraction of previously-non-null values into NaT. Such a parse is
+# refused (the column is left as-is) rather than silently nulling real data — the
+# classic footgun of forcing one format onto a column with several date formats.
+_MAX_PARSE_LOSS = 0.2
+
+
+def _parse_loss(original: "pd.Series", parsed: "pd.Series") -> float:
+    """Fraction of originally-non-null values that became NaT after parsing."""
+    non_null = int(original.notna().sum())
+    if non_null == 0:
+        return 0.0
+    newly_nat = int((parsed.isna() & original.notna()).sum())
+    return newly_nat / non_null
+
 
 def _to_snake_case(name: str) -> str:
     """Convert a column header string to snake_case."""
@@ -132,15 +147,29 @@ async def standardize_formats(
             fmt = column_overrides[col]
             try:
                 parsed = pd.to_datetime(series, format=fmt, errors="coerce")
-                changed = parsed.notna() & series.notna() & (parsed.astype(str) != series.astype(str))
-                df_out[col] = parsed
-                n = int(changed.sum())
-                cells_modified += n
-                changes.append(f"applied format override '{fmt}' ({n} cells)")
+                loss = _parse_loss(series, parsed)
+                if loss > _MAX_PARSE_LOSS:
+                    # Wrong/too-rigid format for this column — would destroy data.
+                    # Don't apply; warn and fall through to mixed-format auto-detection.
+                    warnings.append(
+                        f"Column '{col}': format override '{fmt}' matched only "
+                        f"{(1 - loss) * 100:.0f}% of values — not applied (column likely "
+                        f"has mixed date formats). Letting auto-detection handle it."
+                    )
+                else:
+                    changed = parsed.notna() & series.notna() & (parsed.astype(str) != series.astype(str))
+                    df_out[col] = parsed
+                    n = int(changed.sum())
+                    cells_modified += n
+                    changes.append(f"applied format override '{fmt}' ({n} cells)")
+                    format_report.setdefault(col, []).extend(changes)
+                    continue
             except Exception as e:
                 warnings.append(f"Column '{col}': override '{fmt}' failed — {e}")
-            format_report.setdefault(col, []).extend(changes)
-            continue
+                format_report.setdefault(col, []).extend(changes)
+                continue
+            # Destructive override fell through — re-fetch series for the steps below.
+            series = df_out[col]
 
         # Skip already-typed columns
         if pd.api.types.is_numeric_dtype(series) or pd.api.types.is_datetime64_any_dtype(series):
@@ -187,13 +216,26 @@ async def standardize_formats(
         # 4. Try datetime parsing
         if parse_dates:
             try:
-                parsed = pd.to_datetime(non_null.iloc[:min(50, len(non_null))], errors="coerce", format="mixed")
-                valid_ratio = parsed.notna().sum() / max(len(non_null), 1)
+                sample = non_null.iloc[:min(50, len(non_null))]
+                parsed_sample = pd.to_datetime(sample, errors="coerce", format="mixed")
+                # Confidence is the sample's hit rate — divide by the SAMPLE size, not
+                # the whole column, or large columns never clear the bar (bug A).
+                valid_ratio = parsed_sample.notna().sum() / max(len(sample), 1)
                 if valid_ratio > 0.8:
-                    df_out[col] = pd.to_datetime(series, errors="coerce", format="mixed")
-                    n = int(df_out[col].notna().sum())
-                    cells_modified += n
-                    changes.append(f"parsed as datetime ({n} cells)")
+                    full = pd.to_datetime(series, errors="coerce", format="mixed")
+                    loss = _parse_loss(series, full)
+                    if loss > _MAX_PARSE_LOSS:
+                        # Sample looked date-like but the full column doesn't parse
+                        # cleanly — leave it untouched rather than null real values.
+                        warnings.append(
+                            f"Column '{col}': not parsed as datetime — {loss * 100:.0f}% of "
+                            f"values wouldn't parse (ambiguous/mixed formats)."
+                        )
+                    else:
+                        df_out[col] = full
+                        n = int(full.notna().sum())
+                        cells_modified += n
+                        changes.append(f"parsed as datetime ({n} cells)")
             except Exception:
                 pass
 

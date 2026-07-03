@@ -24,6 +24,8 @@ from tools.dataset_loader import dataset_loader
 from tools.data_profiler import profile_dataset
 from tools.eda import explore_dataset
 from tools.visualization import plot_dataset
+from tools.feature_eng import encode_features
+from tools.stats import statistical_test
 from tools.cleaning.missing_handler import handle_missing_values
 from tools.validator import validate_dataset
 from tools.output_generator import generate_output
@@ -63,12 +65,24 @@ async def test_keyless_pipeline_across_specialists(mock_ctx, csv_file, tmp_path)
     assert plot["success"] is True
     assert plot["plot_artifact_key"].endswith(".png")
 
-    # 6. Cleaning — validate, no key passed.
+    # 6. Feature-Engineering — one-hot encode a categorical, no key; MUTATES → new version.
+    enc = await encode_features("one_hot", columns=["Name"], tool_context=mock_ctx)
+    assert enc["success"] is True
+    encoded_key = _current_key(mock_ctx)
+    assert encoded_key and encoded_key != cleaned_key, "encoding must advance current_dataset_key"
+
+    # 7. Analysis — statistical test on the encoded version, no key (read-only).
+    stat = await statistical_test("correlation", columns=["Age", "Salary"], tool_context=mock_ctx)
+    assert stat["success"] is True
+    assert stat["report"]["p_value"] is not None
+    assert _current_key(mock_ctx) == encoded_key  # read-only: did not advance the version
+
+    # 8. Cleaning — validate, no key passed.
     val = await validate_dataset(tool_context=mock_ctx)
     assert val["success"] is True
     assert val["quality_score"] is not None
 
-    # 7. Reporting — export, no key passed.
+    # 9. Reporting — export, no key passed.
     out = await generate_output(output_dir=str(tmp_path), tool_context=mock_ctx)
     assert out["success"] is True
     assert out["csv_path"]
@@ -82,6 +96,8 @@ async def test_keyless_tool_errors_cleanly_when_nothing_loaded(mock_ctx):
         await explore_dataset(tool_context=mock_ctx),
         await validate_dataset(tool_context=mock_ctx),
         await plot_dataset(chart_kind="histogram", x="x", tool_context=mock_ctx),
+        await encode_features("one_hot", tool_context=mock_ctx),
+        await statistical_test("correlation", columns=["a", "b"], tool_context=mock_ctx),
     ):
         assert result["success"] is False
         assert "No dataset loaded" in result["error_message"]

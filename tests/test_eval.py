@@ -30,7 +30,7 @@ _TOKENS = {
     "{{FIXTURE_CSV}}": _FIXTURES / "tiny.csv",
     "{{EDA_CSV}}": _FIXTURES / "eda_sample.csv",
 }
-_EVALSETS = ["routing.evalset.json", "eda.evalset.json"]
+_EVALSETS = ["routing.evalset.json", "eda.evalset.json", "feature_eng.evalset.json"]
 
 
 def _materialize_evalset(name: str, dest_dir: Path) -> Path:

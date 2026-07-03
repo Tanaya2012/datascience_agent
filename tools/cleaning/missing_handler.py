@@ -97,7 +97,9 @@ async def handle_missing_values(
         if missing_frac > drop_threshold:
             columns_dropped.append(col)
             warnings.append(
-                f"Column '{col}' dropped: {missing_frac*100:.1f}% missing (threshold={drop_threshold*100:.0f}%)"
+                f"⚠️ DROPPED COLUMN '{col}' — {missing_frac*100:.1f}% missing exceeded "
+                f"drop_threshold={drop_threshold*100:.0f}%. This removes data that was not "
+                f"explicitly requested for removal; report it and confirm with the user."
             )
     if columns_dropped:
         df_out = df_out.drop(columns=columns_dropped)
@@ -165,6 +167,10 @@ async def handle_missing_values(
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)
     state.current_dataset_key = artifact_key
 
+    # Dropping a column is a significant, easily-unintended action — drop the
+    # confidence below the agent's 0.7 review gate so it pauses and surfaces it.
+    confidence = 0.6 if columns_dropped else 0.95
+
     col_lineage = ColumnLineage(columns_removed=columns_dropped)
     log = TransformationLog(
         step_name=STEP_NAME,
@@ -178,7 +184,7 @@ async def handle_missing_values(
         column_lineage=col_lineage,
         checksum_before=checksum_before,
         checksum_after=checksum_after,
-        confidence=0.95,
+        confidence=confidence,
         operation_detail={
             "columns_imputed": {k: v.value for k, v in columns_imputed.items()},
             "columns_dropped": columns_dropped,
@@ -199,7 +205,7 @@ async def handle_missing_values(
         shape_after=ShapeInfo(rows=rows_after, cols=cols_after),
         rows_removed=rows_before - rows_after,
         cells_modified=cells_modified,
-        confidence=0.95,
+        confidence=confidence,
         log=log,
         warnings=warnings,
         columns_imputed=columns_imputed,
