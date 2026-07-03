@@ -3,15 +3,15 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-27
-**Current milestone:** M4a–M4c complete → M4d (regression guard + eval + docs) closes M4
+**Last updated:** 2026-06-29
+**Current milestone:** M4 COMPLETE (feature engineering & statistics) → M5 (modeling) next
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **309 passed, 2 skipped** (skipped = LLM evals; structural eval tests run always).
+  Last run: **315 passed, 3 skipped** (skipped = 3 LLM evals; structural eval tests run always).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -164,14 +164,35 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   plain-English `interpretation`, saved as a `StatTestReport` JSON under a new `"stats"`
   artifact type. `tests/test_stats.py` (14). Analysis specialist now has 5 tools.
 
+- **M4d complete (closes M4 — 310 tests + live FE eval green):**
+  - `tests/test_cross_specialist.py` keyless chain extended with `encode_features` (FE) +
+    `statistical_test` (Analysis) steps — regression coverage for the new tools across
+    specialist boundaries.
+  - `evals/feature_eng.evalset.json` (one-hot encode `region` → deterministic column list),
+    wired into `tests/test_eval.py`'s `_EVALSETS`. **Live FE eval verified green.**
+    *Finding:* a transformation eval must **authorize execution in the prompt** — the
+    orchestrator's "confirm before transforming" gate otherwise returns "approve this plan?"
+    in a single-turn eval (read-only EDA evals don't hit this).
+  - Docs finalized: `CAPABILITIES.md` (as of M4), `README.MD` (5 specialists), `ARCHITECTURE.md`
+    (status M4; only Modeling deferred to M5).
+
+- **Cleaning data-loss bugfix (D15) — 315 tests green:** fixed a real `adk web` failure
+  where `order_date` was silently dropped. `standardize_formats` now auto-parses large
+  mixed-format date columns (sample-size denominator) and **refuses** a date parse that would
+  null >20% of values (no more silent destruction from a rigid format override).
+  `handle_missing_values` keeps `drop_threshold=0.5` but flags drops loudly (⚠️ warning +
+  confidence 0.6 < the 0.7 review gate). `tests/test_cleaning_regressions.py` (5) guards it.
+  *Known gap:* no tool for value-level text cleanup (e.g. Region capitalization) or explicit
+  column removal — only via `run_python`.
+
 ## In progress
-- M4 underway (phased). M4a–M4c done; M4d remains.
+- (nothing mid-flight) — **M4 fully closed out** (+ D15 cleaning bugfix).
 
 ## Next
-- **M4d (closes M4) — regression + eval + docs:** extend `tests/test_cross_specialist.py`
-  with `encode_features` + `statistical_test` steps; add `evals/feature_eng.evalset.json`
-  (+ fixture, wired into the token→fixture map); update `CAPABILITIES.md`/`README.MD`
-  (5 specialists; FE + stats) and `ARCHITECTURE.md` (drop the "FE deferred" note).
+- **M5 — Modeling:** new Modeling specialist (6th) with sklearn train/eval
+  (classification/regression/clustering), train/test split, cross-validation, metrics,
+  feature importance; model-artifact persistence; "predict churn" eval. Reuse the
+  mutating/read-only tool templates + `FeatureTransformResult`/report patterns. Likely phased.
 
 ## Open issues / notes
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK

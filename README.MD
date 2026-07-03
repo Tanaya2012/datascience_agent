@@ -12,8 +12,8 @@ explores, transforms, analyzes, models, and reports — keeping a full audit tra
   data mutation — tool or generated code — is checkpointed as a versioned Parquet
   artifact plus a transformation log.
 - **Multi-agent:** a model-agnostic orchestrator routes to focused specialists
-  via `AgentTool` — Data Steward, Cleaning, Analysis/EDA, Reporting today
-  (Feature-Engineering & Modeling specialists land in M4/M5).
+  via `AgentTool` — Data Steward, Cleaning, Analysis/EDA, Feature-Engineering, and
+  Reporting today (a Modeling specialist lands in M5).
 - **Model-agnostic:** orchestrator model resolved from env via ADK + LiteLLM
   (Gemini / Claude / OpenAI / local). See `configs/model_config.py`.
 

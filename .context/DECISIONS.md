@@ -201,3 +201,32 @@ near-identical result classes and ~30 lines of boilerplate per tool.
 ARCHITECTURE); deferring target encoding (roadmap lists it; warning suffices);
 per-tool result subclasses (needless proliferation); a 6th Modeling specialist now
 (no tools yet — M5).
+
+### 2026-06-30 — D15: cleaning data-loss bugfix (mixed-format dates → silent column drop)
+**Context:** A real `adk web` run silently lost the `order_date` column. Root cause was
+three compounding bugs in the legacy cleaning tools (reproduced deterministically):
+(A) `standardize_formats` auto date-parse computed its confidence as
+`valid_sample / len(non_null)` instead of `/ len(sample)`, so columns with >~62
+non-null rows **never** auto-parsed → "normalize dates" did nothing; (B) that pushed
+the LLM to pass a rigid `column_overrides={'order_date': '%Y-%m-%d'}`, which the
+override path applied with no guard, coercing ~80% of the mixed-format dates to NaT
+silently; (C) `handle_missing_values` then auto-dropped the now-80%-null column via
+the default `drop_threshold=0.5`, even though the user only asked to fill emails.
+**Decision (fixes, user-approved):**
+- A: divide the date-parse hit-rate by the **sample size**, so auto-detection fires.
+- B: refuse any date parse (override *or* auto) that would NaT more than
+  `_MAX_PARSE_LOSS=20%` of non-null values — keep the column unchanged and warn; a
+  destructive override falls through to mixed-format auto-detection (which recovers it).
+- C: **keep** `drop_threshold=0.5` (user chose "warn louder, don't change the default")
+  but make a drop loud — an explicit "⚠️ DROPPED COLUMN" warning **and** drop the
+  result `confidence` to 0.6 (< the agent's 0.7 review gate) so it pauses and surfaces
+  the drop to the user.
+**Verified:** the originally-failing pipeline now preserves `order_date` (auto-parsed,
+0% missing) whether or not a bad override is passed. `tests/test_cleaning_regressions.py`
+(5) guards A/B/C. 315 tests green.
+**Rejected:** changing the drop default to 1.0 / scoping drops to targeted columns
+(user preferred minimal default change + visibility); instruction-only fixes (tool-level
+guards are robust regardless of LLM behavior); auto-substituting a different date format
+silently (predictable refuse-and-warn preferred).
+**Noted (not fixed):** no tool does value-level text normalization (e.g. Region
+capitalization) or explicit column removal — those only exist via `run_python` today.

@@ -42,11 +42,11 @@ comes from routing **every** data mutation through a versioned artifact + log.
    └─────────┴──────► shared ARTIFACT + AUDIT LAYER ◄───────────┘
 ```
 
-> **Status (M2):** the orchestrator + **four** specialists below — Data Steward,
-> Cleaning, Analysis/EDA, Reporting — are implemented (`agent.py` +
-> `sub_agents/`). Feature-Engineering and Modeling are part of the *target* but
-> deferred to M4/M5 when they gain real tools (D9); until then the Analysis
-> specialist's `run_python` covers that ground.
+> **Status (M4):** the orchestrator + **five** specialists below — Data Steward,
+> Cleaning, Analysis/EDA, Feature-Engineering, Reporting — are implemented
+> (`agent.py` + `sub_agents/`). The **Modeling** specialist is part of the *target*
+> but deferred to M5 when it gains real tools (D9); until then the Analysis
+> specialist's `run_python` covers ad-hoc modeling.
 
 - **Orchestrator** — converses, plans, routes to specialists, reflects on results.
 - **Specialists** — focused `LlmAgent`s, each with a small relevant toolset,

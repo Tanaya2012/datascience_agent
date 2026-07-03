@@ -70,7 +70,7 @@ restart resumes session (persistence test); Kaggle wiring conditional + tested (
 - [x] Unit tests (`test_eda.py` 11, `test_visualization.py` 12) + "explore this dataset" eval
       (`evals/eda.evalset.json` + `eda_sample.csv`); live EDA eval verified green.
 
-## M4 — Feature engineering & statistics  *(phased M4a–M4d; M4a done — D14)*
+## ✅ M4 — Feature engineering & statistics  *(COMPLETE — 310 tests + live FE eval; D14)*
 New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new deps (sklearn+scipy present).
 - [x] **M4a** — FE specialist + `encode_features` (one-hot/label/target, leakage-warned) +
       `scale_features` (standard/minmax/robust); shared `FeatureTransformResult` +
@@ -79,7 +79,8 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
       (calendar parts, auto-coerce); FE specialist now has all 4 transforms (297 green)
 - [x] **M4c** — `statistical_test` on Analysis: t-test/anova/chi²/correlation (scipy) →
       `StatTestResult` + `"stats"` artifact + plain-English interpretation (309 green)
-- [ ] **M4d** — extend cross-specialist regression chain; `evals/feature_eng.evalset.json`; docs
+- [x] **M4d** — cross-specialist regression chain extended (encode + stat-test);
+      `evals/feature_eng.evalset.json` (live green); CAPABILITIES/README/ARCHITECTURE finalized
 - [ ] derived columns → covered by `run_python` (no dedicated tool planned)
 
 ## M5 — Modeling
@@ -93,3 +94,14 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
 - [ ] Reflection loop (plan → execute → reflect → self-correct; consider `LoopAgent`)
 - [ ] L4 container executor backend (same `CodeExecutor` interface)
 - [ ] Expanded eval suite + regression pass
+
+## Backlog — deferred enhancements (not milestone-bound)
+Cross-cutting gaps surfaced during development; slot into a milestone when prioritized.
+- [ ] **Cleaning: value-level text normalization** (Cleaning specialist) — a tool to clean
+      *cell values* (trim whitespace, fix capitalization/case, collapse inconsistent
+      categories like Region `" north "`/`"North"`). Today `standardize_formats` only touches
+      headers + type coercion; value-level cleanup needs `run_python`. (Surfaced in D15.)
+- [ ] **Cleaning: explicit column drop/select** (Cleaning specialist) — a deterministic,
+      audited tool to drop/keep named columns (e.g. remove an uninformative `Currency`
+      column), instead of relying on `handle_missing_values`' threshold side-effect or
+      `run_python`. (Surfaced in D15.)
