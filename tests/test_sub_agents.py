@@ -29,7 +29,7 @@ def _tool_names(agent) -> set[str]:
 BUILDERS = {
     "data_steward": (
         build_data_steward,
-        {"dataset_loader", "ingest_uploaded_file", "profile_dataset"},
+        {"dataset_loader", "ingest_uploaded_file", "search_kaggle", "download_kaggle", "profile_dataset"},
     ),
     "cleaning_specialist": (
         build_cleaning_specialist,

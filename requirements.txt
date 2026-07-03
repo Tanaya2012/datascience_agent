@@ -1,6 +1,10 @@
 # Core ADK runtime
 google-adk>=2.1.0
-mcp>=1.0.0           # Kaggle MCP toolset (StdioServerParameters); optional extra in ADK 2.x
+mcp>=1.0.0           # generic stdio MCP connector factory (sub_agents/_mcp.py); optional extra in ADK 2.x
+
+# Kaggle datasets/competitions via the official library (D16 — replaced kaggle-mcp).
+# Auth from ~/.kaggle/kaggle.json or KAGGLE_USERNAME/KAGGLE_KEY.
+kaggle>=1.6.0
 
 # Persistent sessions (DatabaseSessionService). ADK builds an *async* SQLAlchemy
 # engine, so SQLite needs the aiosqlite driver (sqlite+aiosqlite://) + greenlet.

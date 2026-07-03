@@ -3,15 +3,17 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-06-29
-**Current milestone:** M4 COMPLETE (feature engineering & statistics) → M5 (modeling) next
+**Last updated:** 2026-07-03
+**Current milestone:** M4 COMPLETE + D16 (Kaggle via library) done → M4.5 hardening, then M5
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **315 passed, 3 skipped** (skipped = 3 LLM evals; structural eval tests run always).
+  Last run: **321 passed, 3 skipped** (skipped = 3 LLM evals; structural eval tests run always).
+- Kaggle live smoke (tool-level, needs creds), from `/Users/tushar/interests`:
+  `... python -m datascience_agent.scripts.smoke_test_kaggle` (search + download).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
@@ -185,21 +187,26 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   *Known gap:* no tool for value-level text cleanup (e.g. Region capitalization) or explicit
   column removal — only via `run_python`.
 
+- **D16 complete (Kaggle via `kaggle` library — 321 tests + live smoke green):**
+  - `tools/kaggle_tool.py`: `search_kaggle(query, source=dataset|competition)` +
+    `download_kaggle(ref, source=…)` via the official `kaggle` lib — downloads/unzips to a
+    controlled `artifacts/kaggle/<slug>/` and **returns file paths** (the agent then
+    `dataset_loader`s the chosen file). `kaggle_credentials_available()` + clean auth-error
+    messages. `kaggle` added to `requirements.txt`.
+  - `sub_agents/_mcp.py` generalized: `maybe_kaggle_toolset()` → generic
+    `maybe_stdio_toolset(command, args, tool_filter, gate)` (launcher-on-PATH + optional gate)
+    for *future* MCP servers; no Kaggle specifics left.
+  - Data Steward rewired: dropped the MCP toolset; now has `search_kaggle` + `download_kaggle`
+    (always registered, in-process); instruction updated (no stale MCP tool names).
+  - Tests: `tests/test_kaggle.py` (mocked API + `_KAGGLE_DIR`→tmp), `test_mcp.py` rewritten for
+    the generic factory, roster asserts updated. `scripts/smoke_test_kaggle.py` (tool-level live).
+  - **Live-verified:** real search + download of `heptapod/titanic` → file path returned from a
+    controlled dir (the exact capability the MCP lacked).
+
 ## In progress
-- **Kaggle replacement slice (D16, 2026-07-03):** decision recorded, ready to implement.
-  Creds landed and the Kaggle MCP was live-verified for the first time — the server
-  works but its interface is inadequate (single `prepare_kaggle_dataset` tool, downloads
-  hardcoded inside its uv-cache install dir, no path returned, no MCP Resources), which
-  forced a fragile cache-globbing bridge (since reverted; it also picked titanic
-  `test.csv` over `train.csv`). **Next slice:** direct `kaggle`-library Data Steward
-  tool + generalize `_mcp.py` into a gated stdio-connector factory + docs/smoke-test
-  updates. (A stale MCP-era `scripts/smoke_test_kaggle.py` was deleted; write the
-  library-based one fresh in the slice — copy the harness from
-  `scripts/smoke_test_routing.py`.) See DECISIONS **D16** + ROADMAP backlog entry.
-- Otherwise: **M4 fully closed out** (+ D15 cleaning bugfix).
+- (nothing mid-flight) — **M4 closed out** (+ D15 cleaning bugfix, + D16 Kaggle).
 
 ## Next
-- **Kaggle D16 implementation slice** (see "In progress" above) — small, do first.
 - **M4.5 — Hardening (recommended before M5):** bug bash (5–10 messy scenarios through the
   live agent + upload drag-drop), cleaning-contract audit (never mutate un-named columns /
   never silently lose data — extends D15), and promote findings into a multi-turn +
@@ -216,9 +223,8 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
   Runner on gemini-2.0-flash → called `dataset_loader` + `profile_dataset`, correct final
   answer. The conversational/tool-calling loop works end-to-end.
-- ~~Kaggle MCP broken (`uv` absent)~~ — `uv` installed in M2b; toolset registers
-  conditionally. Live verification (2026-07-03) then showed the wired tool names never
-  existed on the server → **kaggle-mcp is being replaced by the `kaggle` library (D16)**.
+- ~~Kaggle MCP broken~~ — **resolved (D16):** replaced kaggle-mcp with the official `kaggle`
+  library in `tools/kaggle_tool.py`; live-verified (search + download to a controlled path).
 - Env `dsagent` (conda) can run the suite — see "How to run" above. Earlier "can't run
   here" constraint is resolved.
 - ~~`MCPToolset` deprecated~~ — resolved in M2a: `agent.py` no longer imports it; Kaggle MCP
@@ -226,9 +232,9 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - ~~`adk web` uploads unusable~~ — resolved in M2b: `ingest_uploaded_file` (Data Steward)
   reads inline-Part / artifact uploads. Inline + artifact paths unit-tested; a real `adk web`
   drag-drop round-trip is still worth a manual smoke once creds/UI are exercised.
-- **Kaggle live path:** `~/.kaggle/kaggle.json` present since 2026-07-03; auth verified
-  live (titanic downloaded). Gating (omit tools when creds absent) stays as a pattern,
-  but the transport moves from MCP to the `kaggle` library — see D16.
+- **Kaggle:** now via the `kaggle` library (D16), not MCP. Creds
+  (`~/.kaggle/kaggle.json`) present + live-verified. Tools are always registered and return a
+  clean "credentials not found" message when creds are absent.
 - ~~`schemas/` empty dir~~ — removed in M2a. Real models live in `tools/schemas.py`.
 - `TaskConfig`/`PlannedTask` in `tools/schemas.py` is vestigial (unused by `agent.py`);
   planning will live in the orchestrator prompt for now.

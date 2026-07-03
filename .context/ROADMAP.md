@@ -136,11 +136,8 @@ Cross-cutting gaps surfaced during development; slot into a milestone when prior
       migrate test assertions off private attrs (e.g. `_connection_params`) where a public
       surface exists; keep new ADK touchpoints behind existing abstractions (CodeExecutor ABC,
       `configs/model_config.py`, `sub_agents/_mcp.py`). Maintenance tax, not a fire.
-- [ ] **Kaggle via `kaggle` library (D16)** — creds now present and the MCP path was
-      live-verified 2026-07-03: `kaggle-mcp` exposes only `prepare_kaggle_dataset`,
-      hardcodes downloads inside its uv-cache install dir, and returns no path — so it's
-      being **replaced** with a direct `kaggle`-library Data Steward tool (download to
-      `artifacts/kaggle/<slug>/`, competitions + datasets + search, mocked tests).
-      Slice also: generalize `_mcp.py` into a gated stdio-connector factory; update
-      CLAUDE.md / CAPABILITIES.md Kaggle sections; adapt `scripts/smoke_test_kaggle.py`;
-      add `kaggle` dep. See DECISIONS D16.
+- [x] **Kaggle via `kaggle` library (D16)** — DONE (321 tests + live smoke green):
+      `tools/kaggle_tool.py` (`search_kaggle` + `download_kaggle`, datasets + competitions,
+      → `artifacts/kaggle/<slug>/`, returns file paths); `_mcp.py` generalized into
+      `maybe_stdio_toolset()`; Data Steward rewired; `tests/test_kaggle.py` + `test_mcp.py`;
+      `scripts/smoke_test_kaggle.py`; `kaggle` dep added; CAPABILITIES/CLAUDE updated.

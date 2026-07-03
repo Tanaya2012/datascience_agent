@@ -1,68 +1,43 @@
 """
-Tests for the conditional Kaggle MCP toolset (M2b).
+Tests for the generic gated MCP stdio-connector factory (`sub_agents/_mcp.py`).
 
-The toolset must register only when ``uvx`` is on PATH, and the Data Steward must
-build cleanly either way. We monkeypatch ``shutil.which`` so the tests are
-deterministic regardless of whether ``uv`` is installed on the dev box.
+Generalized in D16 (Kaggle moved off MCP). We monkeypatch `shutil.which` so tests
+are deterministic regardless of what launchers are installed on the dev box.
 """
 
 from __future__ import annotations
 
-import pytest
-
 from datascience_agent.sub_agents import _mcp
-from datascience_agent.sub_agents.data_steward import build_data_steward
 
 
-def _force(monkeypatch, *, uvx: bool, creds: bool = True):
-    """Force the two gates: uvx-on-PATH and Kaggle-credentials-present."""
-    monkeypatch.setattr(_mcp.shutil, "which", lambda cmd: "/usr/bin/uvx" if uvx else None)
-    monkeypatch.setattr(_mcp, "kaggle_credentials_available", lambda: creds)
+def _force_launcher(monkeypatch, present: bool):
+    monkeypatch.setattr(_mcp.shutil, "which", lambda cmd: f"/usr/bin/{cmd}" if present else None)
 
 
-class TestMaybeKaggleToolset:
-    def test_returns_none_when_uvx_absent(self, monkeypatch):
-        _force(monkeypatch, uvx=False)
+class TestMaybeStdioToolset:
+    def test_returns_none_when_launcher_absent(self, monkeypatch):
+        _force_launcher(monkeypatch, present=False)
         assert _mcp.uvx_available() is False
-        assert _mcp.maybe_kaggle_toolset() is None
+        ts = _mcp.maybe_stdio_toolset("uvx", ["some-mcp"], ["a", "b"])
+        assert ts is None
 
-    def test_returns_none_when_creds_absent(self, monkeypatch):
-        # uvx present but no Kaggle creds → skip (would otherwise spam MCP errors).
-        _force(monkeypatch, uvx=True, creds=False)
-        assert _mcp.maybe_kaggle_toolset() is None
+    def test_returns_none_when_gate_fails(self, monkeypatch):
+        _force_launcher(monkeypatch, present=True)
+        ts = _mcp.maybe_stdio_toolset("uvx", ["some-mcp"], ["a"], gate=lambda: False)
+        assert ts is None
 
-    def test_builds_toolset_when_uvx_and_creds_present(self, monkeypatch):
-        _force(monkeypatch, uvx=True, creds=True)
-        ts = _mcp.maybe_kaggle_toolset()
+    def test_builds_toolset_when_launcher_and_gate_ok(self, monkeypatch):
+        _force_launcher(monkeypatch, present=True)
+        ts = _mcp.maybe_stdio_toolset("uvx", ["some-mcp"], ["tool_a", "tool_b"], gate=lambda: True)
         from google.adk.tools.mcp_tool import McpToolset
 
         assert isinstance(ts, McpToolset)
-
-    def test_toolset_filter_and_command(self, monkeypatch):
-        _force(monkeypatch, uvx=True, creds=True)
-        ts = _mcp.maybe_kaggle_toolset()
-        assert set(ts.tool_filter) == {"search_kaggle_datasets", "download_kaggle_dataset"}
+        assert set(ts.tool_filter) == {"tool_a", "tool_b"}
         server_params = ts._connection_params.server_params
         assert server_params.command == "uvx"
-        assert "kaggle-mcp" in server_params.args
-        # No explicit env override → subprocess inherits parent env (PATH, creds).
-        assert server_params.env is None
+        assert server_params.args == ["some-mcp"]
 
-
-class TestDataStewardConditionalWiring:
-    def test_steward_has_no_mcp_toolset_when_uvx_absent(self, monkeypatch):
-        _force(monkeypatch, uvx=False)
-        steward = build_data_steward()
-        from google.adk.tools.mcp_tool import McpToolset
-
-        assert not any(isinstance(t, McpToolset) for t in steward.tools)
-        # Function tools always present.
-        fn_tools = {t.__name__ for t in steward.tools if hasattr(t, "__name__")}
-        assert fn_tools == {"dataset_loader", "ingest_uploaded_file", "profile_dataset"}
-
-    def test_steward_includes_mcp_toolset_when_enabled(self, monkeypatch):
-        _force(monkeypatch, uvx=True, creds=True)
-        steward = build_data_steward()
-        from google.adk.tools.mcp_tool import McpToolset
-
-        assert any(isinstance(t, McpToolset) for t in steward.tools)
+    def test_no_gate_means_launcher_only(self, monkeypatch):
+        _force_launcher(monkeypatch, present=True)
+        ts = _mcp.maybe_stdio_toolset("npx", ["x"], ["t"])  # gate=None
+        assert ts is not None

@@ -164,6 +164,11 @@ class StatTestType(str, Enum):
     correlation = "correlation"  # association of two numeric columns (pearson/spearman)
 
 
+class KaggleSource(str, Enum):
+    dataset = "dataset"          # a Kaggle dataset (ref "owner/slug")
+    competition = "competition"  # a Kaggle competition (ref = competition id)
+
+
 # ---------------------------------------------------------------------------
 # B. Artifact & Version Models
 # ---------------------------------------------------------------------------
@@ -435,6 +440,30 @@ class BaseToolResult(BaseModel):
 
 class DatasetLoaderResult(BaseToolResult):
     schema_summary: list[dict[str, str]] = []   # [{col, dtype, sample}]
+
+
+class KaggleHit(BaseModel):
+    """One Kaggle search result (dataset or competition)."""
+    ref: str                                     # "owner/slug" (dataset) or competition id
+    title: str | None = None
+    subtitle: str | None = None
+    url: str | None = None
+    size_bytes: int | None = None
+
+
+class KaggleSearchResult(BaseToolResult):
+    """Result of search_kaggle (D16) — Kaggle dataset/competition search."""
+    source: KaggleSource | None = None
+    query: str = ""
+    hits: list[KaggleHit] = []
+
+
+class KaggleDownloadResult(BaseToolResult):
+    """Result of download_kaggle (D16) — files fetched to a local artifacts dir."""
+    source: KaggleSource | None = None
+    ref: str = ""
+    download_dir: str | None = None
+    files: list[str] = []                        # absolute paths of downloaded files
 
 
 class DataProfilerResult(BaseToolResult):

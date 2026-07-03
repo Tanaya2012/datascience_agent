@@ -65,9 +65,11 @@ class TestSpecialistTooling:
         return next(t.agent for t in root_agent.tools if t.agent.name == name)
 
     def test_data_steward_tools(self):
-        # Function tools are fixed; the Kaggle McpToolset is optional (uvx-gated).
         tools = _function_tool_names(self._specialist("data_steward"))
-        assert tools == {"dataset_loader", "ingest_uploaded_file", "profile_dataset"}
+        assert tools == {
+            "dataset_loader", "ingest_uploaded_file",
+            "search_kaggle", "download_kaggle", "profile_dataset",
+        }
 
     def test_cleaning_specialist_tools(self):
         tools = _function_tool_names(self._specialist("cleaning_specialist"))
