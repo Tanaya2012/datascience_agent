@@ -271,3 +271,77 @@ tools-only; 315 tests green.
 deterministic file ranking) — still reaches into another environment's private
 filesystem; forking kaggle-mcp to add Resources/path-arg — maintenance burden for a
 wrapper that subtracts capability from the library underneath.
+
+### 2026-07-04 — D17: cleaning-contract audit — surface silent coercion loss (M4.5)
+**Context:** M4.5 hardening. Audited all 8 mutating tools against two rules: *never
+mutate a column the caller didn't name*; *never silently lose data*. Most tools
+passed or were already addressed (`handle_missing_values` threshold-drop is loud per
+D15; `merge_datasets` logs row counts + `match_rate` warning + non-clobbering
+`suffixes`; one-hot removing originals is the named op; `scale_features` is NaN-safe
+in the installed sklearn — verified). **Two gaps found**, both in *type coercion*:
+(1) `standardize_formats` could null up to ~20% of a column's non-null values via
+numeric/currency/date coercion with **no warning and no count** — the numeric and
+currency paths had no loss reporting at all, and currency had no refusal guard (only
+dates got one in D15); (2) `encode_features` **label** encoding maps NaN → `-1`
+silently, conflating missing with a real category.
+**Decision (fixes):**
+- `standardize_formats`: a shared `_coercion_loss()` + `_note_nulled()` now reports
+  every value a coercion turns to null across the date-override, date-auto, numeric,
+  and currency paths (per-column ⚠️ warning + `operation_detail["cells_nulled"]`).
+  The **currency path gains the same >20% refusal guard** as dates (leave the column
+  untouched if a parse would null the majority). An accepted coercion that still nulls
+  **≥ `_COERCE_LOSS_GATE` (5%)** of a column drops result `confidence` to 0.6 (< the
+  0.7 review gate) so material loss is surfaced; a stray unparseable cell warns but
+  stays at 0.9. Mirrors D15's graduated "warn louder / trip the gate" philosophy.
+- `encode_features` (label): warn per column when missing values are encoded as `-1`,
+  steering users to impute first if missingness matters.
+**Verified:** `tests/test_contract_audit.py` (7) covers numeric/currency nulling +
+report, destructive-currency refusal, the 5% gate boundary (quiet vs. trip), and
+label-encode NaN flagging. Full suite **328 passed, 3 skipped**.
+**Rejected:** refusing all coercions with any loss (too aggressive — a stray "N/A" is
+normal); silently coercing as before (violates the rule); a hard confidence drop on
+any nulled cell (would make every messy-CSV standardize pause). Value-level text
+normalization + explicit column-drop tools remain backlog (D15), not this audit.
+
+### 2026-07-04 — D18: deterministic invariant fuzzer + 7 robustness bugfixes (M4.5)
+**Context:** M4.5 bug bash. Rather than only hand-drive the live agent (LLM-noisy,
+non-reproducible), added a **deterministic invariant fuzzer** (`scripts/fuzz_tools.py`)
+that throws hundreds of randomized *messy* DataFrames (mixed dates/currency, all-null,
+constant, high-card, unicode, whitespace, messy headers, dup rows) through random tool
+chains and asserts, after every call, the invariants unit tests don't systematically
+cover: **never raise** (fail gracefully), **read-only tools don't advance the version
+or mutate data**, **audit-trail integrity** (manifest/log checksums vs. the stored
+bytes; shapes consistent), **no undeclared column mutation**, **no unreported
+row/cell loss**. It found real bugs no single scenario would; 2000 seeds now run clean.
+**Bugs fixed (all were agent-facing crashes or silent data loss):**
+1. `handle_missing_values` `mean`/`median` on a non-numeric column → `TypeError`. Now
+   skips with a warning.
+2. `scale_features` on a 0-row dataset → sklearn `ValueError`. Now a clean failure
+   (+ defensive try/except around `fit_transform`).
+3. `handle_missing_values` dropping **every** column → a 0-column frame silently loses
+   all rows through Parquet (round-trips to shape `(0,0)`). Now **refuses to drop all
+   columns** and surfaces it (confidence 0.6).
+4. `bin_columns` on a constant column → `qcut`/`cut` return all-NaN codes without
+   raising → a useless NaN column. Now skipped with a warning.
+5. A mixed-type object column (e.g. a text column filled with a numeric constant, or
+   a `run_python` commit) → pyarrow `ArrowTypeError` on save, crashing the tool. Fixed
+   in the artifact layer: `df_to_parquet_bytes` retries once with object columns
+   coerced to string (degenerate data made storable, not silent loss of typed data).
+6. `deduplicate_dataset` fuzzy dedup on a datetime/NaT (or mixed) column → `" | ".join`
+   got a non-str and raised. Key builder now stringifies each value explicitly.
+7. `standardize_formats` header normalization collapsing two headers to the same
+   snake_case name (e.g. one-hot dummies `value_North`/`value_NORTH`) → duplicate
+   column labels → `df[col]` returns a DataFrame → `AttributeError` crash. Now
+   disambiguates collisions (`name`, `name_2`, …). Plus `encode_features` one-hot now
+   skips single-level columns (with `drop_first` they produce 0 columns → same 0-col
+   row-loss as #3).
+**Verified:** `tests/test_bug_bash.py` (9) reproduces each bug deterministically and
+guards its fix; fuzzer clean at 2000 seeds; full suite **337 passed, 3 skipped**.
+**Note (not a bug):** `compute_checksum` hashes an in-memory frame's Parquet bytes,
+which differ from a reloaded frame's (pandas `StringDtype`→`object`); the *recorded*
+checksum still matches the *stored bytes*, so storage integrity holds — only a
+reload-then-rehash comparison would spuriously differ (the fuzzer checks stored bytes).
+**Rejected:** live-agent-only bug bash (non-reproducible, LLM-noisy, quota-bound —
+kept as a complementary manual `adk web` pass for the upload path); a central 0-column
+persistence guard (the two entry points — drop-all + one-hot-single-level — are each
+guarded at the source, which also gives better messages).

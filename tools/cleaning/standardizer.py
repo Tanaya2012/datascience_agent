@@ -44,20 +44,31 @@ STEP_NAME = "standardize_formats"
 _CURRENCY_RE = re.compile(r"[$€£¥₹₽]\s*|,(?=\d{3})")
 _NUMERIC_CLEANUP_RE = re.compile(r"[^\d.\-+eE]")
 
-# A date parse (auto or explicit-format override) is "destructive" if it would turn
-# more than this fraction of previously-non-null values into NaT. Such a parse is
+# A type coercion (date / numeric / currency) is "destructive" if it would turn
+# more than this fraction of previously-non-null values into null. Such a parse is
 # refused (the column is left as-is) rather than silently nulling real data — the
-# classic footgun of forcing one format onto a column with several date formats.
+# classic footgun of forcing one format onto a column with several formats.
 _MAX_PARSE_LOSS = 0.2
+
+# Even an *accepted* coercion (loss below _MAX_PARSE_LOSS) that nulls at least this
+# fraction of a column's non-null values trips the agent's 0.7 review gate, so a
+# material silent loss is surfaced rather than buried. Below this, a warning is still
+# emitted (visibility) but confidence stays high (a stray unparseable cell is normal).
+_COERCE_LOSS_GATE = 0.05
 
 
 def _parse_loss(original: "pd.Series", parsed: "pd.Series") -> float:
     """Fraction of originally-non-null values that became NaT after parsing."""
+    return _coercion_loss(original, parsed)[1]
+
+
+def _coercion_loss(original: "pd.Series", coerced: "pd.Series") -> tuple[int, float]:
+    """(count, fraction) of originally-non-null values that became null after a coercion."""
     non_null = int(original.notna().sum())
     if non_null == 0:
-        return 0.0
-    newly_nat = int((parsed.isna() & original.notna()).sum())
-    return newly_nat / non_null
+        return 0, 0.0
+    newly_null = int((coerced.isna().to_numpy() & original.notna().to_numpy()).sum())
+    return newly_null, newly_null / non_null
 
 
 def _to_snake_case(name: str) -> str:
@@ -122,14 +133,37 @@ async def standardize_formats(
     format_report: dict[str, list[str]] = {}
     warnings: list[str] = []
     cells_modified = 0
+    cells_nulled = 0        # values silently turned to null by a type coercion
+    max_null_frac = 0.0     # worst per-column nulled fraction (for the review gate)
+
+    def _note_nulled(col_name: str, original: "pd.Series", coerced: "pd.Series") -> None:
+        """Record + warn about non-null values a coercion turned into null."""
+        nonlocal cells_nulled, max_null_frac
+        n_null, frac = _coercion_loss(original, coerced)
+        if n_null:
+            cells_nulled += n_null
+            max_null_frac = max(max_null_frac, frac)
+            warnings.append(
+                f"Column '{col_name}': coerced {n_null} unparseable value(s) "
+                f"({frac*100:.0f}% of non-null) to null."
+            )
 
     old_to_new: dict[str, str] = {}
 
-    # 1. Normalize headers
+    # 1. Normalize headers. Guarantee the resulting names are unique — two headers can
+    #    snake_case to the same string (e.g. one-hot dummies 'value_North'/'value_NORTH'),
+    #    and duplicate column labels break per-column access here and in downstream tools.
     if normalize_headers:
         rename_map: dict[str, str] = {}
+        used: set[str] = set()
         for col in df_out.columns:
-            new_col = _to_snake_case(str(col))
+            new_col = _to_snake_case(str(col)) or "column"
+            if new_col in used:
+                k = 2
+                while f"{new_col}_{k}" in used:
+                    k += 1
+                new_col = f"{new_col}_{k}"
+            used.add(new_col)
             if new_col != col:
                 rename_map[col] = new_col
                 old_to_new[col] = new_col
@@ -158,6 +192,7 @@ async def standardize_formats(
                     )
                 else:
                     changed = parsed.notna() & series.notna() & (parsed.astype(str) != series.astype(str))
+                    _note_nulled(col, series, parsed)
                     df_out[col] = parsed
                     n = int(changed.sum())
                     cells_modified += n
@@ -190,14 +225,22 @@ async def standardize_formats(
                 try:
                     cleaned = series.astype(str).str.replace(_CURRENCY_RE, "", regex=True).str.strip()
                     numeric = pd.to_numeric(cleaned, errors="coerce")
-                    mask = numeric.notna() & series.notna()
-                    df_out.loc[mask, col] = numeric[mask]
-                    df_out[col] = pd.to_numeric(df_out[col], errors="coerce")
-                    n = int(mask.sum())
-                    cells_modified += n
-                    changes.append(f"currency stripped → numeric ({n} cells)")
-                    format_report.setdefault(col, []).extend(changes)
-                    continue
+                    loss = _parse_loss(series, numeric)
+                    if loss > _MAX_PARSE_LOSS:
+                        # Looked currency-like but most values don't parse — leave the
+                        # column untouched rather than nulling the majority (matches dates).
+                        warnings.append(
+                            f"Column '{col}': currency parse would null {loss*100:.0f}% "
+                            "of values — not applied (column likely isn't all currency)."
+                        )
+                    else:
+                        _note_nulled(col, series, numeric)
+                        df_out[col] = numeric
+                        n = int((numeric.notna() & series.notna()).sum())
+                        cells_modified += n
+                        changes.append(f"currency stripped → numeric ({n} cells)")
+                        format_report.setdefault(col, []).extend(changes)
+                        continue
                 except Exception as e:
                     warnings.append(f"Currency parse failed for '{col}': {e}")
 
@@ -206,8 +249,10 @@ async def standardize_formats(
             numeric = pd.to_numeric(non_null, errors="coerce")
             valid_ratio = numeric.notna().sum() / max(len(non_null), 1)
             if valid_ratio > 0.8:
-                df_out[col] = pd.to_numeric(series, errors="coerce")
-                n = int((df_out[col].notna() & series.notna()).sum())
+                coerced = pd.to_numeric(series, errors="coerce")
+                _note_nulled(col, series, coerced)
+                df_out[col] = coerced
+                n = int((coerced.notna() & series.notna()).sum())
                 cells_modified += n
                 changes.append(f"coerced to numeric ({n} cells)")
                 format_report.setdefault(col, []).extend(changes)
@@ -232,6 +277,7 @@ async def standardize_formats(
                             f"values wouldn't parse (ambiguous/mixed formats)."
                         )
                     else:
+                        _note_nulled(col, series, full)
                         df_out[col] = full
                         n = int(full.notna().sum())
                         cells_modified += n
@@ -263,6 +309,10 @@ async def standardize_formats(
     state.artifact_manifest.versions.setdefault(STEP_NAME, []).append(dataset_version)
     state.current_dataset_key = artifact_key
 
+    # A coercion that materially nulls a column (≥ _COERCE_LOSS_GATE) drops confidence
+    # below the agent's 0.7 review gate so the silent loss is surfaced to the user.
+    confidence = 0.6 if max_null_frac >= _COERCE_LOSS_GATE else 0.9
+
     log = TransformationLog(
         step_name=STEP_NAME,
         task_type=TaskType.standardize_formats,
@@ -274,12 +324,13 @@ async def standardize_formats(
         column_lineage=ColumnLineage(columns_renamed=old_to_new),
         checksum_before=checksum_before,
         checksum_after=checksum_after,
-        confidence=0.9,
+        confidence=confidence,
         operation_detail={
             "normalize_headers": normalize_headers,
             "parse_dates": parse_dates,
             "parse_currency": parse_currency,
             "parse_numerics": parse_numerics,
+            "cells_nulled": cells_nulled,
         },
         warnings=warnings,
     )
@@ -295,7 +346,7 @@ async def standardize_formats(
         shape_before=ShapeInfo(rows=rows, cols=cols_before),
         shape_after=ShapeInfo(rows=rows_after, cols=cols_after),
         cells_modified=cells_modified,
-        confidence=0.9,
+        confidence=confidence,
         log=log,
         warnings=warnings,
         format_report=format_report,

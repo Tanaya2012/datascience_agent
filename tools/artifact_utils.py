@@ -55,10 +55,38 @@ SESSION_STATE_KEY = "pipeline_state"
 # Serialization helpers
 # ---------------------------------------------------------------------------
 
+def _stringify_object_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce object columns to string (nulls preserved) — a non-crashing fallback
+    for mixed-type object columns pyarrow can't serialize (e.g. a text column filled
+    with a numeric constant)."""
+    def _s(v):
+        try:
+            if pd.isna(v):
+                return None
+        except (TypeError, ValueError):
+            pass  # non-scalar (list/array) — not null, stringify below
+        return str(v)
+
+    safe = df.copy()
+    for c in safe.columns:
+        if safe[c].dtype == object:
+            safe[c] = safe[c].map(_s)
+    return safe
+
+
 def df_to_parquet_bytes(df: pd.DataFrame) -> bytes:
-    """Serialize a DataFrame to Parquet bytes (in-memory)."""
+    """Serialize a DataFrame to Parquet bytes (in-memory).
+
+    A mixed-type object column (e.g. strings + an int constant fill) makes pyarrow
+    raise; rather than crash the calling tool, retry once with object columns coerced
+    to string. That is degenerate data being made storable, not silent loss of typed data.
+    """
     buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow")
+    try:
+        df.to_parquet(buf, index=False, engine="pyarrow")
+    except Exception:
+        buf = io.BytesIO()
+        _stringify_object_columns(df).to_parquet(buf, index=False, engine="pyarrow")
     return buf.getvalue()
 
 

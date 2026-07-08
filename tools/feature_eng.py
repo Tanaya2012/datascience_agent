@@ -184,13 +184,23 @@ async def encode_features(
     lineage = ColumnLineage()
 
     if enc == EncodingMethod.one_hot:
-        ok = [c for c in cols if df[c].nunique(dropna=True) <= max_cardinality]
+        ok = []
         for c in cols:
-            if c not in ok:
+            nun = df[c].nunique(dropna=True)
+            if nun > max_cardinality:
                 warnings.append(
-                    f"Column '{c}' skipped: {df[c].nunique()} distinct values "
+                    f"Column '{c}' skipped: {nun} distinct values "
                     f"(> max_cardinality={max_cardinality})."
                 )
+            elif nun <= 1:
+                # A single-level column yields no usable dummies (and with drop_first
+                # produces zero columns → a 0-column frame that loses its rows on save).
+                warnings.append(
+                    f"Column '{c}' skipped: constant/single-value column — one-hot "
+                    "would add no usable columns."
+                )
+            else:
+                ok.append(c)
         if not ok:
             return FeatureTransformResult(
                 success=False, step_name=ENCODE_STEP,
@@ -206,8 +216,15 @@ async def encode_features(
     elif enc == EncodingMethod.label:
         for c in cols:
             old = str(df_out[c].dtype)
+            n_missing = int(df_out[c].isna().sum())
             df_out[c] = df_out[c].astype("category").cat.codes  # -1 for NaN
             lineage.type_changes[c] = (old, str(df_out[c].dtype))
+            if n_missing:
+                warnings.append(
+                    f"Column '{c}': {n_missing} missing value(s) encoded as -1, a "
+                    "distinct code conflated with a real category — impute before "
+                    "label-encoding if missingness matters."
+                )
 
     else:  # target
         if not target or target not in df.columns:
@@ -304,11 +321,23 @@ async def scale_features(
             error_message="No numeric columns to scale.", warnings=warnings,
         ).model_dump(mode="json")
 
+    if len(df) == 0:
+        return FeatureTransformResult(
+            success=False, step_name=SCALE_STEP,
+            error_message="Cannot scale an empty dataset (0 rows).", warnings=warnings,
+        ).model_dump(mode="json")
+
     from sklearn import preprocessing
 
     scaler = getattr(preprocessing, _SCALERS[sm])()
     df_out = df.copy()
-    df_out[numeric_cols] = scaler.fit_transform(df_out[numeric_cols])
+    try:
+        df_out[numeric_cols] = scaler.fit_transform(df_out[numeric_cols])
+    except Exception as exc:
+        return FeatureTransformResult(
+            success=False, step_name=SCALE_STEP,
+            error_message=f"Scaling failed: {exc}", warnings=warnings,
+        ).model_dump(mode="json")
 
     lineage = ColumnLineage(
         type_changes={c: (str(df[c].dtype), str(df_out[c].dtype)) for c in numeric_cols}
@@ -391,7 +420,14 @@ async def bin_columns(
         except Exception as exc:  # e.g. too few distinct values
             warnings.append(f"Column '{c}' skipped: could not bin ({exc}).")
             continue
+        # qcut/cut can return all-NaN for a degenerate (e.g. constant) column without
+        # raising — that's a useless bin column, so skip it with a warning too.
+        if pd.isna(codes).all():
+            warnings.append(f"Column '{c}' skipped: not enough distinct values to bin.")
+            continue
         new_col = f"{c}_binned"
+        if new_col in df_out.columns:
+            warnings.append(f"Column '{new_col}' already existed and was overwritten.")
         df_out[new_col] = codes
         binned.append(new_col)
 
@@ -494,6 +530,8 @@ async def engineer_datetime_features(
             feats.append("hour")
         for f in feats:
             new_col = f"{c}_{f}"
+            if new_col in df_out.columns:
+                warnings.append(f"Column '{new_col}' already existed and was overwritten.")
             df_out[new_col] = _DT_FEATURES[f](parsed.dt)
             added.append(new_col)
         used_cols.append(c)

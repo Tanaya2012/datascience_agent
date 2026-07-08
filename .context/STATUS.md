@@ -3,8 +3,10 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-03
-**Current milestone:** M4 COMPLETE + D16 (Kaggle via library) done → M4.5 hardening, then M5
+**Last updated:** 2026-07-04
+**Current milestone:** M4.5 hardening IN PROGRESS — cleaning-contract audit (D17) +
+deterministic fuzz bug-bash (D18, 7 bugfixes) done. Next: **live-agent** bug bash
+(adk web + upload drag-drop, needs LLM) + promote findings → multi-turn/error-recovery evalset
 **Branch:** main
 
 ## How to run
@@ -204,14 +206,34 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
     controlled dir (the exact capability the MCP lacked).
 
 ## In progress
-- (nothing mid-flight) — **M4 closed out** (+ D15 cleaning bugfix, + D16 Kaggle).
+- **M4.5 — Hardening.** Cleaning-contract audit ✅ (D17) + deterministic fuzz bug-bash
+  ✅ (D18) — **337 tests**. Remaining: (a) **live-agent** bug bash — `adk web`
+  orchestrator routing + upload drag-drop (needs LLM + browser; the headless fuzzer
+  can't reach these); (b) **promote findings** → a multi-turn + error-recovery evalset.
+
+## M4.5 fuzz bug-bash result (D18)
+- `scripts/fuzz_tools.py` — invariant fuzzer (no LLM, unbounded): randomized messy
+  DataFrames × random tool chains; asserts no-crash / read-only-purity / audit-trail
+  integrity / no-undeclared-column-mutation / no-silent-loss. **Clean at 2000 seeds.**
+- Found + fixed 7 bugs (crashes + silent data loss): mean/median on text; scale on
+  empty; drop-all-columns annihilation; bin constant→NaN; mixed-type object column
+  Parquet crash (fixed in artifact layer); fuzzy-dedup on datetime; header-collision
+  duplicate labels (+ one-hot single-level 0-column loss). `tests/test_bug_bash.py` (9).
+
+## M4.5 audit result (D17)
+- Fixed `standardize_formats` silent type-coercion loss (numeric/currency/date paths
+  now count + warn about nulled cells; currency gained the >20% refusal guard; a ≥5%
+  per-column loss trips the 0.7 review gate). Fixed `encode_features` label NaN→-1
+  silent conflation (now warns). `tests/test_contract_audit.py` (7).
+- Reviewed-and-accepted (no change): `handle_missing_values` threshold-drop (loud per
+  D15), `merge_datasets` row loss (logged + `match_rate` warning + non-clobber suffixes),
+  one-hot dropping originals (named op), `scale_features` (NaN-safe in installed sklearn),
+  `deduplicate_dataset` (reports removed counts).
 
 ## Next
-- **M4.5 — Hardening (recommended before M5):** bug bash (5–10 messy scenarios through the
-  live agent + upload drag-drop), cleaning-contract audit (never mutate un-named columns /
-  never silently lose data — extends D15), and promote findings into a multi-turn +
-  error-recovery evalset. Rationale: every real-usage session so far surfaced a real bug
-  (D13, D15). See ROADMAP "M4.5".
+- **M4.5 bug bash** (needs quota/live agent) — drive 5–10 messy scenarios; log failures.
+- **Promote findings** → multi-turn (propose→approve→execute→verify) + error-recovery
+  evalset. Rationale: every real-usage session so far surfaced a real bug (D13, D15).
 - **M5 — Modeling:** new Modeling specialist (6th) with sklearn train/eval; model registry in
   `AgentSessionState` (state-mediated context, not NL summaries); kernel eviction; "predict
   churn" eval. Reuse the mutating/read-only tool templates + `FeatureTransformResult`/report

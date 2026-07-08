@@ -86,11 +86,20 @@ New **Feature-Engineering specialist** (5th); stat tests on Analysis; no new dep
 ## M4.5 — Hardening (before M5)
 Rationale: every real-usage session has surfaced a real bug (D13, D15). Do a deliberate
 adversarial pass before modeling chains more mutations together.
-- [ ] **Bug bash** — drive 5–10 messy/realistic scenarios through the live agent
-      (`adk web`), including uploaded-file drag-drop; log failures.
-- [ ] **Cleaning contract audit** — one pass over all mutating tools against two rules:
-      *never mutate a column the caller didn't name; never silently lose data*; fix
-      violations + add contract tests. (Extends D15.)
+- [x] **Bug bash (tool layer)** — built a **deterministic invariant fuzzer**
+      (`scripts/fuzz_tools.py`): hundreds of randomized messy DataFrames × random tool
+      chains, asserting no-crash / read-only-purity / audit-integrity / no-undeclared-
+      mutation / no-silent-loss. Found + fixed **7 robustness bugs** (D18); clean at
+      2000 seeds; `tests/test_bug_bash.py` (9). **337 passed.**
+- [ ] **Bug bash (live agent)** — remaining: drive messy scenarios through `adk web`
+      incl. uploaded-file drag-drop (needs live LLM + browser; the headless fuzzer
+      can't reach the orchestrator routing or the upload UI). Log failures.
+- [x] **Cleaning contract audit** — one pass over all mutating tools against two rules:
+      *never mutate a column the caller didn't name; never silently lose data* (D17).
+      Fixed `standardize_formats` silent coercion loss (numeric/currency/date now
+      report nulled cells; currency gains the >20% refusal guard; ≥5% loss trips the
+      review gate) + `encode_features` label NaN→-1 warning; `tests/test_contract_audit.py`
+      (7). Other tools reviewed-and-accepted. **328 passed.** (Extends D15.)
 - [ ] **Promote findings → evals/regression tests** — turn the best bug-bash scenarios
       into a **multi-turn** evalset case (propose→approve→execute→verify) and an
       **error-recovery** case (tool `success:false` → agent surfaces, doesn't loop —

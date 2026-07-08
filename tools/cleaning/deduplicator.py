@@ -222,8 +222,13 @@ def _apply_fuzzy_dedup(
     if missing:
         raise ValueError(f"fuzzy_columns not found in DataFrame: {missing}")
 
-    # Build composite key strings
-    keys = df[fuzzy_columns].fillna("").astype(str).agg(" | ".join, axis=1).tolist()
+    # Build composite key strings. Stringify each value explicitly (str(v), "" for
+    # null) rather than rely on column-level .astype(str) — the latter doesn't reliably
+    # coerce datetime/NaT or mixed-type object columns, so " | ".join could receive a
+    # non-str and raise (a fuzzy column need not be plain text).
+    keys = df[fuzzy_columns].apply(
+        lambda row: " | ".join("" if pd.isna(v) else str(v) for v in row), axis=1
+    ).tolist()
 
     threshold_score = threshold * 100  # rapidfuzz uses 0–100
 

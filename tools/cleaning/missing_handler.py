@@ -90,19 +90,34 @@ async def handle_missing_values(
     columns_imputed: dict[str, MissingStrategy] = {}
     warnings: list[str] = []
     cells_modified = 0
+    refused_drop_all = False
 
-    # 1. Drop columns that exceed the threshold
-    for col in df_out.columns.tolist():
-        missing_frac = df_out[col].isna().mean()
-        if missing_frac > drop_threshold:
+    # 1. Drop columns that exceed the threshold — but NEVER drop every column.
+    #    A 0-column DataFrame silently loses its rows through Parquet (round-trips to
+    #    shape (0, 0)), annihilating the dataset. If everything is too sparse, refuse
+    #    the drop and surface it loudly instead of quietly destroying the data.
+    would_drop = [
+        c for c in df_out.columns.tolist() if df_out[c].isna().mean() > drop_threshold
+    ]
+    if would_drop and len(would_drop) == df_out.shape[1]:
+        refused_drop_all = True
+        warnings.append(
+            f"⚠️ ALL {len(would_drop)} columns exceed drop_threshold="
+            f"{drop_threshold*100:.0f}% missing — refusing to drop them (that would leave "
+            "an empty dataset). Nothing dropped; lower the threshold or address the "
+            "missingness first."
+        )
+    else:
+        for col in would_drop:
+            missing_frac = df_out[col].isna().mean()
             columns_dropped.append(col)
             warnings.append(
                 f"⚠️ DROPPED COLUMN '{col}' — {missing_frac*100:.1f}% missing exceeded "
                 f"drop_threshold={drop_threshold*100:.0f}%. This removes data that was not "
                 f"explicitly requested for removal; report it and confirm with the user."
             )
-    if columns_dropped:
-        df_out = df_out.drop(columns=columns_dropped)
+        if columns_dropped:
+            df_out = df_out.drop(columns=columns_dropped)
 
     # 2. Apply per-column strategies
     for col, strategy_str in strategy_config.items():
@@ -117,6 +132,17 @@ async def handle_missing_values(
 
         n_missing_before = int(df_out[col].isna().sum())
         if n_missing_before == 0:
+            continue
+
+        # mean/median are only defined for numeric columns — calling them on an
+        # object/string column raises TypeError. Skip with a clear warning instead
+        # of crashing the tool (which the agent would see as an opaque exception).
+        if strategy in (MissingStrategy.mean, MissingStrategy.median) and \
+                not pd.api.types.is_numeric_dtype(df_out[col]):
+            warnings.append(
+                f"Column '{col}': strategy '{strategy.value}' needs a numeric column "
+                f"(got dtype {df_out[col].dtype}); skipping. Use mode/ffill/constant."
+            )
             continue
 
         if strategy == MissingStrategy.mean:
@@ -169,7 +195,7 @@ async def handle_missing_values(
 
     # Dropping a column is a significant, easily-unintended action — drop the
     # confidence below the agent's 0.7 review gate so it pauses and surfaces it.
-    confidence = 0.6 if columns_dropped else 0.95
+    confidence = 0.6 if (columns_dropped or refused_drop_all) else 0.95
 
     col_lineage = ColumnLineage(columns_removed=columns_dropped)
     log = TransformationLog(
