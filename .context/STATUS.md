@@ -3,10 +3,11 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-04
+**Last updated:** 2026-07-09
 **Current milestone:** M4.5 hardening IN PROGRESS — cleaning-contract audit (D17) +
-deterministic fuzz bug-bash (D18, 7 bugfixes) done. Next: **live-agent** bug bash
-(adk web + upload drag-drop, needs LLM) + promote findings → multi-turn/error-recovery evalset
+deterministic fuzz bug-bash (D18, 7 fixes) + live-agent scenario bank (D19, 1 crash fix)
+done — **343 tests**. Next: promote findings → multi-turn/error-recovery evalset; +
+optional manual `adk web` upload-drag-drop pass (user, ~5 min).
 **Branch:** main
 
 ## How to run
@@ -207,9 +208,34 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 
 ## In progress
 - **M4.5 — Hardening.** Cleaning-contract audit ✅ (D17) + deterministic fuzz bug-bash
-  ✅ (D18) — **337 tests**. Remaining: (a) **live-agent** bug bash — `adk web`
-  orchestrator routing + upload drag-drop (needs LLM + browser; the headless fuzzer
-  can't reach these); (b) **promote findings** → a multi-turn + error-recovery evalset.
+  ✅ (D18) + live-agent scenario bank ✅ (D19) — **343 tests**. Remaining:
+  (a) **promote findings** → a multi-turn + error-recovery evalset (the 2 intermittent
+  behavioral findings from D19 are the seed cases); (b) optional manual `adk web`
+  upload-drag-drop pass (user; the scripted bank can't drive the browser upload UI).
+
+## M4.5 live bug-bash result (D19)
+- `scripts/live_bug_bash.py` — 10 adversarial scenarios × N repeats through the real
+  orchestrator (ADK Runner); asserts state/artifact invariants (transformation_logs,
+  no-loop, honest error-recovery), not exact tool trajectories. Model `gemini-2.5-pro`.
+- **Fixed a real crash:** ADK instruction-template collision — literal `{col}` in the
+  FE specialist instruction → `KeyError: Context variable not found: col`, crashing
+  every FE invocation. Rephrased to `<col>`; whole-class guard in
+  `tests/test_agent_instructions.py`. Live-reverified.
+- **Deferred (LLM-behavioral, intermittent) → error-recovery evalset seeds:**
+  (a) silent column drop — agent drops a column (conf 0.6) but reports only the final
+  shape, not the drop (~2/5; found by the review-added confidence invariant);
+  (b) bare/dotted tool-name hallucination (`load`, `feature_engineering_specialist.encode_features`)
+  → ADK raises, kills the turn; (c) over-reach / ignoring a specific question.
+- **External review of the harness (3 of 5 applied):** dead-loop removed; budget abort
+  now ends the scenario; **confidence invariant added** (its best catch — surfaced (a)).
+  Declined the hardcoded-path nit and asserting `pipeline_status` (see note below).
+- **Upload path probed headlessly → CONFIRMED BUG (D20):** uploaded inline files don't
+  survive the orchestrator→specialist `AgentTool` boundary, so `ingest_uploaded_file`
+  (on data_steward) never sees a web-UI upload (0/3 through orchestrator; 3/3 in a
+  single-agent setup). The M2b upload feature is broken in the live topology; 343 unit
+  tests missed it (they use a fake context). **Fix approach chosen (Option A,
+  `before_agent_callback` auto-ingest); implementation deferred.** Repro:
+  `scratchpad/probe_upload*.py`.
 
 ## M4.5 fuzz bug-bash result (D18)
 - `scripts/fuzz_tools.py` — invariant fuzzer (no LLM, unbounded): randomized messy
@@ -260,6 +286,9 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - ~~`schemas/` empty dir~~ — removed in M2a. Real models live in `tools/schemas.py`.
 - `TaskConfig`/`PlannedTask` in `tools/schemas.py` is vestigial (unused by `agent.py`);
   planning will live in the orchestrator prompt for now.
+- `PipelineStatus.paused` is **vestigial** — defined but never assigned (tools set only
+  `running`/`completed`; the pause-and-ask gate is conversational, not state-backed).
+  Fold into the M6 plan-schema cleanup alongside `TaskConfig`/`PlannedTask` (D19).
 - Datetime-inference guard treats all-digit strings (incl. `YYYYMMDD`) as non-dates by
   design — favors not misclassifying IDs/zips; explicit date formats handled by standardizer.
 

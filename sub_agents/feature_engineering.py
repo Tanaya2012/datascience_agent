@@ -33,11 +33,11 @@ Your tools:
 - `scale_features` — numeric scaling: `standard` (z-score), `minmax` ([0,1]), or
   `robust` (median/IQR, outlier-resistant).
 - `bin_columns` — discretize numeric columns into `n_bins` bins (`quantile` =
-  equal-frequency, `uniform` = equal-width); adds a `{col}_binned` column
+  equal-frequency, `uniform` = equal-width); adds a `<col>_binned` column
   (non-destructive).
 - `engineer_datetime_features` — extract calendar parts (year/month/day/
   dayofweek/quarter/is_weekend, and hour when present) from datetime columns,
-  adding `{col}_{feature}` columns.
+  adding `<col>_<feature>` columns.
 
 Rules:
 - These tools operate on the **current dataset automatically** — you don't need a

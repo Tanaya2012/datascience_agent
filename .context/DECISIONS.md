@@ -345,3 +345,108 @@ reload-then-rehash comparison would spuriously differ (the fuzzer checks stored 
 kept as a complementary manual `adk web` pass for the upload path); a central 0-column
 persistence guard (the two entry points — drop-all + one-hot-single-level — are each
 guarded at the source, which also gives better messages).
+
+### 2026-07-09 — D19: live-agent bug bash (scenario bank) + ADK instruction-template fix (M4.5)
+**Context:** M4.5 bug bash, live layer — the deterministic fuzzer (D18) can't reach the
+orchestrator↔specialist LLM routing, multi-turn plan/approval gating, or error-recovery
+loops. Built `scripts/live_bug_bash.py`: 10 adversarial/compounding/deliberately-broken
+scenarios driven through the **real orchestrator** via the ADK Runner, **each repeated N
+times** (the LLM is non-deterministic — one run samples one trajectory), asserting
+**state/artifact invariants** (transformation_logs, column_lineage, warnings, no-loop,
+event budget, honest error-recovery) rather than exact tool trajectories (D11). Inner
+tool calls run inside a specialist's sub-runner, so the parent event stream shows only
+delegations — the shared `pipeline_state` is the observation surface. Model: `gemini-2.5-pro`.
+**Findings (50 runs = 10×5):**
+- **Real crash (fixed): ADK instruction-template collision.** The Feature-Engineering
+  specialist's instruction contained literal `{col}_binned` / `{col}_{feature}` example
+  text; ADK's `LlmAgent` renders a string instruction through session-state templating,
+  so `{col}` → `KeyError: Context variable not found: col`, crashing the turn **every
+  time the FE specialist is invoked** (3/5 in the encode scenario; "intermittent" only
+  because the orchestrator doesn't always route to FE). Fixed by rephrasing to `<col>`
+  (brace-free — robust regardless of ADK escaping semantics). **Guarded** by
+  `tests/test_agent_instructions.py` (6) — asserts *no* orchestrator/specialist
+  instruction contains a single-brace `{token}` (whole-class guard). Live-reverified:
+  FE now runs encode+bin with zero KeyError.
+- **Intermittent LLM-behavioral (documented, not fixed — per user):** (a) orchestrator
+  once (1/6) hallucinated a bare `load` tool call → ADK "Tool not found" killed the
+  turn; (b) once (1/5) it ignored a specific question (correlation of two nonexistent
+  columns), didn't surface the missing columns, and over-reached (ran unrequested
+  clean+export, skipping the confirm gate). At 1-occurrence frequencies these are within
+  LLM noise; instruction-tuning on two anecdotes risks over-fitting and isn't
+  deterministically verifiable — so they become **error-recovery evalset candidates**
+  (the right tool for adherence issues) rather than prompt edits.
+- **Confirmed good behavior:** bad-column and no-dataset requests → the agent lists
+  available columns / asks for the file path (never fabricates); D15 "fill emails only"
+  never dropped a column (5/5); multi-turn plan→approve executed cleanly (5/5).
+**Harness robustness:** `event.content.parts` None-guard; a mid-turn ADK raise is caught
+and recorded as an agent finding (with transcript), not a harness crash; the
+error-recovery heuristic accepts honest "I need / not in / available columns" phrasings.
+**Verified:** full suite **343 passed, 3 skipped**; live FE path reverified.
+**Rejected:** prompt-tuning the two intermittent behaviors now (over-fitting to
+anecdotes, unverifiable); doubling braces `{{col}}` to escape (brace-free rephrase is
+clearer and ADK-version-independent).
+**Amendment (external review of `live_bug_bash.py`):** applied 3 of 5 review points —
+(2) removed a dead no-op loop in `inv_fill_emails_only`; (3) a turn that blows the
+event budget now aborts the rest of the scenario (was breaking only that turn);
+(4) **added `inv_low_confidence_surfaced`** (the review's best catch): when any
+transform logs `confidence < 0.7` (the D15/D17 review-gate signal), the agent's final
+answer must acknowledge it. This immediately surfaced a **new intermittent behavioral
+finding** — on the all-null scenario the agent sometimes (~2/5) drops the `notes` column
+but reports only the final shape, never telling the user (silent drop); other runs
+correctly say "removed the empty notes column" or propose-and-ask. (The word-list
+needed tuning — "removed"/"empty"/"as planned" — to stop flagging runs that *did*
+surface it.) → another error-recovery evalset seed. Declined (1) the hardcoded scratch
+path (throwaway per user) and (5) asserting `pipeline_status`: verified
+`PipelineStatus.paused` is **defined but never assigned by any code** (tools only set
+`running`/`completed`) — the pause-and-ask behavior is conversational, not state-backed,
+so asserting `paused` would test dead schema. `paused` is **vestigial** (same family as
+the unused `TaskConfig`/`PlannedTask`); noted for the M6 plan-schema cleanup.
+**Live-behavioral findings for the error-recovery evalset (all intermittent, deferred):**
+(a) silent column drop without surfacing; (b) bare/dotted tool-name hallucination
+(`load`, `feature_engineering_specialist.encode_features`) → ADK raises, kills the turn;
+(c) over-reach / ignoring a specific question.
+
+### 2026-07-09 — D20: uploaded files don't survive AgentTool delegation (CONFIRMED bug; fix = Option A, deferred)
+**Status:** confirmed + root-caused + fix approach chosen. **Implementation deferred**
+(user's call) — record now, build later.
+**Bug:** the `adk web` **upload path (`ingest_uploaded_file`, M2b) is broken in the
+multi-agent topology.** A dropped file arrives as an inline data `Part` on the *user
+message*; the tool reads it via `tool_context.user_content`. But `ingest_uploaded_file`
+lives on the **data_steward** specialist, and when the orchestrator delegates via
+`AgentTool`, ADK runs the specialist in a fresh sub-runner whose `user_content` is the
+orchestrator's *delegation text*, not the original human message — so the inline file is
+gone one layer up. The tool correctly reports "no uploaded file found." This is the same
+orchestrator↔specialist boundary ARCHITECTURE.md calls "delegation amnesia": shared
+session state + the run_python kernel cross it; NL summaries don't — and **attachments
+don't either** (a second casualty, previously unnoticed).
+**Evidence (headless, via ADK Runner + real LLM, `scratchpad/probe_upload*.py`):**
+- Through orchestrator → data_steward: **0/3 ingest** ("couldn't find the file").
+- Minimal single agent owning `ingest_uploaded_file` directly (no delegation), same
+  inline-Part message: **3/3 ingest** (6×6, profiled). The only difference is the
+  delegation hop → cause pinned to `AgentTool` dropping `user_content`.
+**Why the 343 tests missed it:** `tests/test_ingestion.py` calls the tool with a *fake*
+`tool_context` that already holds `user_content` (≡ the single-agent case). Nothing drove
+an upload through the real Runner + delegation, so the boundary was never exercised.
+**Chosen fix — Option A: `before_agent_callback` on the orchestrator (auto-ingest).**
+ADK fires it before the LLM sees the turn, with a `CallbackContext` that has
+`user_content`, mutable `state`, and `save_artifact`/`load_artifact` (all verified
+present). The callback: detect an inline data Part → parse → `save_artifact` (Parquet) →
+set `current_dataset_key` + append the ingest `TransformationLog` in state → return None.
+Downstream delegations then pick up the dataset via `current_dataset_key` (which *does*
+cross the boundary), routing *around* the broken hop. Deterministic (no LLM tool-choice
+reliance); keeps the orchestrator delegate-only in its LLM reasoning; loading isn't a
+mutation so it doesn't trip the confirm-before-transform gate. Refactor the tool's core
+(`_resolve_upload_bytes`/`_bytes_to_df`/save+state) into a shared helper used by both the
+tool (unchanged, for the artifact-path case) and the callback.
+**Implementation notes for later:** callback no-ops when no inline Part (cheap check, runs
+every orchestrator turn); policy — newest upload becomes `current_dataset_key`; **known
+limitation** — secondary/merge uploads (two files for a join) can't be inferred from
+bytes alone, so they stay on the tool path or need explicit handling.
+**Acceptance test:** `scratchpad/probe_upload.py` (full-orchestrator upload) goes 0/3 →
+3/3; add a permanent inline-upload scenario to `live_bug_bash.py` + a Runner-level unit
+test so it can't regress.
+**Rejected:** Option B (register `ingest_uploaded_file` on the orchestrator) — minimal
+but re-bets the fix on LLM tool-choice reliability, which the live bug bash shows is
+flaky (hallucinated tool names), and contradicts D9's delegate-only orchestrator;
+Option D (`before_tool_callback` smuggling `user_content` into the sub-runner) — deep,
+fragile ADK-internal surgery the architecture deliberately routes around via shared state.

@@ -91,9 +91,26 @@ adversarial pass before modeling chains more mutations together.
       chains, asserting no-crash / read-only-purity / audit-integrity / no-undeclared-
       mutation / no-silent-loss. Found + fixed **7 robustness bugs** (D18); clean at
       2000 seeds; `tests/test_bug_bash.py` (9). **337 passed.**
-- [ ] **Bug bash (live agent)** — remaining: drive messy scenarios through `adk web`
-      incl. uploaded-file drag-drop (needs live LLM + browser; the headless fuzzer
-      can't reach the orchestrator routing or the upload UI). Log failures.
+- [x] **Bug bash (live agent, scripted)** — `scripts/live_bug_bash.py`: 10 adversarial
+      scenarios × N repeats through the real orchestrator (ADK Runner), asserting
+      state/artifact invariants (D19). Found + fixed a real crash — an **ADK
+      instruction-template collision** (`{col}` in the FE instruction →
+      `KeyError`), guarded by `tests/test_agent_instructions.py`. 2 intermittent
+      LLM-behavioral findings (bare-`load` hallucination; over-reach) → deferred to the
+      error-recovery evalset. **343 passed.**
+- [x] **Bug bash (upload path, headless)** — probed the inline-upload path through the
+      real orchestrator (`scratchpad/probe_upload*.py`): found a **confirmed bug** —
+      uploaded files don't survive the `AgentTool` delegation boundary (D20). Root-caused
+      + fix approach chosen (Option A, `before_agent_callback` auto-ingest); **implementation
+      deferred** (below).
+- [ ] **Fix upload-through-delegation (D20, Option A)** — `before_agent_callback` on the
+      orchestrator auto-ingests an inline upload → artifact + `current_dataset_key` before
+      routing. Acceptance: `probe_upload.py` 0/3 → 3/3 + a permanent live scenario + a
+      Runner-level unit test. *Deferred — its own slice.*
+- [ ] **Bug bash (live `adk web` UI)** — manual drag-drop round-trip in the browser
+      (partly moot until D20 is fixed — the headless probe already reproduced the failure;
+      the manual pass would confirm it from the real UI and re-verify after the fix).
+      Owner: user, ~5 min.
 - [x] **Cleaning contract audit** — one pass over all mutating tools against two rules:
       *never mutate a column the caller didn't name; never silently lose data* (D17).
       Fixed `standardize_formats` silent coercion loss (numeric/currency/date now
