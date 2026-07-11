@@ -117,10 +117,11 @@ adversarial pass before modeling chains more mutations together.
       report nulled cells; currency gains the >20% refusal guard; ≥5% loss trips the
       review gate) + `encode_features` label NaN→-1 warning; `tests/test_contract_audit.py`
       (7). Other tools reviewed-and-accepted. **328 passed.** (Extends D15.)
-- [ ] **Promote findings → evals/regression tests** — turn the best bug-bash scenarios
-      into a **multi-turn** evalset case (propose→approve→execute→verify) and an
-      **error-recovery** case (tool `success:false` → agent surfaces, doesn't loop —
-      the transcript-#12 failure mode). One effort, two artifacts.
+- [x] **Promote findings → evals/regression tests (D21)** — `evals/error_recovery.evalset.json`
+      (bad column / bad path / no-dataset → honest recovery) + `evals/multiturn_clean.evalset.json`
+      (propose→approve→execute→verify dedup), wired into `tests/test_eval.py`
+      (`RUN_LLM_EVALS`-gated). **Both live-verified green.** Encoded only the *stable*
+      behaviors; intermittent findings stay harness-monitored (D21). **345 passed.**
 
 ## M5 — Modeling
 - [ ] sklearn train/eval (classification/regression/clustering), split, CV, metrics, feature importance

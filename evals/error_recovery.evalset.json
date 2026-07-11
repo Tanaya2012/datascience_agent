@@ -1,0 +1,79 @@
+{
+  "eval_set_id": "error_recovery",
+  "name": "error_recovery",
+  "description": "Error-recovery: an unfulfillable request must be surfaced honestly (name the failure / list what's available / ask for the file) — never fabricate a result or loop (the transcript-#12 failure mode). Gated on response_match (ROUGE) so a regression toward fabrication/crash is caught. {{FIXTURE_CSV}} -> evals/fixtures/tiny.csv (see tests/test_eval.py).",
+  "eval_cases": [
+    {
+      "eval_id": "bad_column_reference",
+      "conversation": [
+        {
+          "invocation_id": "bad_column_reference_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Load the local CSV at {{FIXTURE_CSV}} and then compute the correlation between the columns 'revenue' and 'profit'."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "The columns 'revenue' and 'profit' are not in the dataset, so I can't compute that correlation. The available columns are name, age, and city. Would you like a correlation between existing columns instead?"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "eval_id": "bad_file_path",
+      "conversation": [
+        {
+          "invocation_id": "bad_file_path_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Load the dataset at /nope/does/not/exist/data.csv and profile it."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "I could not load the file because it does not exist at that path. Please check the path and provide a valid file so I can load and profile it."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "eval_id": "transform_without_dataset",
+      "conversation": [
+        {
+          "invocation_id": "transform_without_dataset_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Standardize the formats and scale all the numeric features in my dataset."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "I don't have a dataset loaded yet. Please provide the path to the file you'd like me to work with, and I'll load it first before standardizing and scaling."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

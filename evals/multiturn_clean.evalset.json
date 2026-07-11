@@ -1,0 +1,50 @@
+{
+  "eval_set_id": "multiturn_clean",
+  "name": "multiturn_clean",
+  "description": "Multi-turn propose -> approve -> execute -> verify: the orchestrator proposes a plan, waits for approval, then deduplicates keeping all columns. Guards the confirm-before-transform gate AND that approval actually triggers execution. {{DUP_CSV}} -> evals/fixtures/dup_rows.csv (4 rows, 1 exact duplicate).",
+  "eval_cases": [
+    {
+      "eval_id": "plan_then_dedup",
+      "conversation": [
+        {
+          "invocation_id": "plan_then_dedup_1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "I have a CSV at {{DUP_CSV}}. Load it, then tell me your plan to remove duplicate rows — do NOT execute anything yet, just propose the plan and ask me to confirm."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "I loaded the data. Here is my plan: remove duplicate rows while keeping all columns. Shall I proceed?"
+              }
+            ]
+          }
+        },
+        {
+          "invocation_id": "plan_then_dedup_2",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Yes, that plan looks good. Please execute it now and keep all columns."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Done. I removed 1 duplicate row, keeping all columns. The dataset now has 3 rows and 2 columns."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

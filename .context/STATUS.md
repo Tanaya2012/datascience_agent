@@ -3,11 +3,12 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-09
-**Current milestone:** M4.5 hardening IN PROGRESS — cleaning-contract audit (D17) +
-deterministic fuzz bug-bash (D18, 7 fixes) + live-agent scenario bank (D19, 1 crash fix)
-done — **343 tests**. Next: promote findings → multi-turn/error-recovery evalset; +
-optional manual `adk web` upload-drag-drop pass (user, ~5 min).
+**Last updated:** 2026-07-11
+**Current milestone:** **M4.5 hardening essentially COMPLETE** — cleaning-contract audit
+(D17) + deterministic fuzz bug-bash (D18, 7 fixes) + live-agent scenario bank (D19, 1 crash
+fix) + error-recovery/multi-turn evalsets (D21, live-green) — **345 tests, 5 skipped**.
+Remaining (both tracked, not blocking): the **deferred D20 upload fix** (approach chosen)
+and an optional manual `adk web` pass. **Next milestone: M5 — Modeling.**
 **Branch:** main
 
 ## How to run
@@ -207,11 +208,9 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
     controlled dir (the exact capability the MCP lacked).
 
 ## In progress
-- **M4.5 — Hardening.** Cleaning-contract audit ✅ (D17) + deterministic fuzz bug-bash
-  ✅ (D18) + live-agent scenario bank ✅ (D19) — **343 tests**. Remaining:
-  (a) **promote findings** → a multi-turn + error-recovery evalset (the 2 intermittent
-  behavioral findings from D19 are the seed cases); (b) optional manual `adk web`
-  upload-drag-drop pass (user; the scripted bank can't drive the browser upload UI).
+- (nothing mid-flight) — **M4.5 closed out** (D17–D21). Two tracked follow-ups remain
+  but don't block M5: the **deferred D20 upload fix** (Option A chosen) and an optional
+  manual `adk web` upload pass.
 
 ## M4.5 live bug-bash result (D19)
 - `scripts/live_bug_bash.py` — 10 adversarial scenarios × N repeats through the real
@@ -257,13 +256,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   `deduplicate_dataset` (reports removed counts).
 
 ## Next
-- **M4.5 bug bash** (needs quota/live agent) — drive 5–10 messy scenarios; log failures.
-- **Promote findings** → multi-turn (propose→approve→execute→verify) + error-recovery
-  evalset. Rationale: every real-usage session so far surfaced a real bug (D13, D15).
-- **M5 — Modeling:** new Modeling specialist (6th) with sklearn train/eval; model registry in
-  `AgentSessionState` (state-mediated context, not NL summaries); kernel eviction; "predict
-  churn" eval. Reuse the mutating/read-only tool templates + `FeatureTransformResult`/report
-  patterns. Phased.
+- **M5 — Modeling (next milestone):** new Modeling specialist (6th) with sklearn train/eval;
+  model registry in `AgentSessionState` (state-mediated context, not NL summaries); kernel
+  eviction; "predict churn" eval. Reuse the mutating/read-only tool templates +
+  `FeatureTransformResult`/report patterns. Phased.
+- **Deferred M4.5 follow-ups (non-blocking):** implement the D20 upload fix (Option A);
+  optional manual `adk web` upload-drag-drop pass (user, ~5 min).
 - **M6:** phase it — reporting/notebook export, cross-session memory, reflection (+ plan-schema
   decision), autonomy levels, L4 executor, and D8 artifact alignment. See ROADMAP.
 

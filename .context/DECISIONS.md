@@ -450,3 +450,31 @@ but re-bets the fix on LLM tool-choice reliability, which the live bug bash show
 flaky (hallucinated tool names), and contradicts D9's delegate-only orchestrator;
 Option D (`before_tool_callback` smuggling `user_content` into the sub-runner) — deep,
 fragile ADK-internal surgery the architecture deliberately routes around via shared state.
+
+### 2026-07-11 — D21: M4.5 evalsets — error-recovery + multi-turn (closes M4.5)
+**Context:** M4.5's third task — promote bug-bash findings into regression evals. Two new
+ADK evalsets wired into `tests/test_eval.py` (structural parse always runs;
+`AgentEvaluator`/ROUGE gated behind `RUN_LLM_EVALS=1`, per D11):
+- `evals/error_recovery.evalset.json` (3 cases) — bad column reference, bad file path,
+  transform-with-no-dataset. Reference answers gate *honest* recovery (name the failure /
+  list available columns / ask for the file), guarding the transcript-#12 fabricate-or-loop
+  failure mode.
+- `evals/multiturn_clean.evalset.json` (1 case, 2 invocations) — propose → approve →
+  execute → verify: the orchestrator proposes a dedup plan, waits, then on approval
+  deduplicates keeping all columns (fixture `dup_rows.csv`: 4 rows, 1 exact dup → 3×2).
+  Guards both the confirm-before-transform gate and that approval triggers execution.
+**Key design choice — encode only *stable* behaviors as pass/fail evals.** The recovery
+scenarios ran 5/5 and multi-turn 5/5 in the live bank, so they make reliable gates. The
+*intermittent* findings (silent column drop ~2/5, tool-name hallucination ~1/6, over-reach
+~1/5) are deliberately **NOT** baked into ROUGE pass/fail evals — non-deterministic cases
+make flaky evals that erode trust in the suite. Those stay as documented findings (D19),
+monitored via `scripts/live_bug_bash.py`'s **frequency** reporting (N-repeat, invariant-
+based), which is the right tool for intermittent behavior. So: evalset = deterministic-
+enough regression gate for "recovers honestly + executes a multi-turn plan"; harness =
+frequency monitor for the flaky tails; they're complementary, not redundant.
+**Verified:** structural parse green (5 evalsets); **live `RUN_LLM_EVALS=1` for both new
+evalsets passed** (2/2, ROUGE ≥ 0.3, gemini-2.5-pro, 45s); full offline suite **345 passed,
+5 skipped**.
+**Rejected:** encoding the intermittent findings as evals (flaky); tool-trajectory gating
+(brittle exact-arg matching, D11); a bespoke non-ADK eval runner (the ADK harness +
+`live_bug_bash.py` already cover the two regimes).

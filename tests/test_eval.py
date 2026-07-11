@@ -29,8 +29,12 @@ _FIXTURES = _EVALS / "fixtures"
 _TOKENS = {
     "{{FIXTURE_CSV}}": _FIXTURES / "tiny.csv",
     "{{EDA_CSV}}": _FIXTURES / "eda_sample.csv",
+    "{{DUP_CSV}}": _FIXTURES / "dup_rows.csv",
 }
-_EVALSETS = ["routing.evalset.json", "eda.evalset.json", "feature_eng.evalset.json"]
+_EVALSETS = [
+    "routing.evalset.json", "eda.evalset.json", "feature_eng.evalset.json",
+    "error_recovery.evalset.json", "multiturn_clean.evalset.json",
+]
 
 
 def _materialize_evalset(name: str, dest_dir: Path) -> Path:
