@@ -3,12 +3,11 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-11
-**Current milestone:** **M4.5 hardening essentially COMPLETE** — cleaning-contract audit
-(D17) + deterministic fuzz bug-bash (D18, 7 fixes) + live-agent scenario bank (D19, 1 crash
-fix) + error-recovery/multi-turn evalsets (D21, live-green) — **345 tests, 5 skipped**.
-Remaining (both tracked, not blocking): the **deferred D20 upload fix** (approach chosen)
-and an optional manual `adk web` pass. **Next milestone: M5 — Modeling.**
+**Last updated:** 2026-07-12
+**Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 done: **D20 upload fix
+shipped** (`before_agent_callback` auto-ingest + "already loaded" fallback; live 0/3 → 3/3) —
+**348 passed, 6 skipped**. Next: Phase 2 (M5a) — Modeling specialist + `train_model` +
+model registry in `AgentSessionState`. M4.5 closed (D17–D21).
 **Branch:** main
 
 ## How to run
@@ -208,9 +207,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
     controlled dir (the exact capability the MCP lacked).
 
 ## In progress
-- (nothing mid-flight) — **M4.5 closed out** (D17–D21). Two tracked follow-ups remain
-  but don't block M5: the **deferred D20 upload fix** (Option A chosen) and an optional
-  manual `adk web` upload pass.
+- **M5 — Modeling.** Phase 1 (D20 upload fix) ✅ done. **Next: Phase 2 (M5a)** — Modeling
+  specialist (6th) + `train_model` (clf/reg) + `ModelRecord` registry in `AgentSessionState`
+  + `"model"` artifact type + pin `scikit-learn`/`joblib`. Plan:
+  `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
+- Optional follow-up (non-blocking): manual `adk web` upload-drag-drop pass (now that D20 is
+  fixed, this would confirm the browser round-trip end-to-end).
 
 ## M4.5 live bug-bash result (D19)
 - `scripts/live_bug_bash.py` — 10 adversarial scenarios × N repeats through the real
@@ -228,13 +230,13 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - **External review of the harness (3 of 5 applied):** dead-loop removed; budget abort
   now ends the scenario; **confidence invariant added** (its best catch — surfaced (a)).
   Declined the hardcoded-path nit and asserting `pipeline_status` (see note below).
-- **Upload path probed headlessly → CONFIRMED BUG (D20):** uploaded inline files don't
-  survive the orchestrator→specialist `AgentTool` boundary, so `ingest_uploaded_file`
-  (on data_steward) never sees a web-UI upload (0/3 through orchestrator; 3/3 in a
-  single-agent setup). The M2b upload feature is broken in the live topology; 343 unit
-  tests missed it (they use a fake context). **Fix approach chosen (Option A,
-  `before_agent_callback` auto-ingest); implementation deferred.** Repro:
-  `scratchpad/probe_upload*.py`.
+- ~~**Upload path bug (D20)**~~ — **FIXED (M5 Phase 1).** `before_agent_callback` on the
+  orchestrator (`tools/upload_callback.py`) auto-ingests the inline upload before routing
+  (shared ingest core; a `CallbackContext` is duck-typed like `ToolContext`). Also a
+  deterministic **"already loaded" fallback** in `ingest_uploaded_file`: when a specialist
+  is asked to "load" an upload the callback already ingested, it reports the current dataset
+  instead of "no file found" (eliminates the redundant-load confusion — observed 3/3 before
+  the fix). Live-verified 0/3 → 3/3 (ingest + profile); gated Runner test in `test_ingestion.py`.
 
 ## M4.5 fuzz bug-bash result (D18)
 - `scripts/fuzz_tools.py` — invariant fuzzer (no LLM, unbounded): randomized messy

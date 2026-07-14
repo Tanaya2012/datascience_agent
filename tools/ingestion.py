@@ -27,9 +27,11 @@ from .artifact_utils import (
     compute_checksum,
     df_to_parquet_bytes,
     get_session_state,
+    load_artifact,
     make_artifact_key,
     make_schema_digest,
     next_version,
+    parquet_bytes_to_df,
     save_artifact,
     set_session_state,
 )
@@ -80,14 +82,47 @@ async def ingest_uploaded_file(
     Returns:
         Serialized DatasetLoaderResult dict.
     """
-    state = get_session_state(tool_context) if tool_context else AgentSessionState()
+    return await _ingest_and_register(
+        tool_context, filename, mime_type, is_secondary, secondary_name
+    )
+
+
+async def _ingest_and_register(
+    ctx,
+    filename: Optional[str],
+    mime_type: Optional[str],
+    is_secondary: bool,
+    secondary_name: Optional[str],
+) -> dict:
+    """Resolve uploaded bytes from ``ctx``, parse to a DataFrame, save a versioned
+    Parquet artifact, update session state, and append the ingest log.
+
+    ``ctx`` may be an ADK ``ToolContext`` *or* a ``CallbackContext`` — both expose
+    ``user_content`` / ``state`` / ``save_artifact`` / ``load_artifact``, which is all
+    this needs. Shared by ``ingest_uploaded_file`` (the tool) and
+    ``ingest_upload_callback`` (the orchestrator before-agent callback, D20), so a
+    web-UI upload is materialized regardless of the multi-agent delegation boundary.
+
+    Returns a serialized ``DatasetLoaderResult`` dict.
+    """
+    state = get_session_state(ctx) if ctx else AgentSessionState()
 
     try:
         raw, resolved_name, resolved_mime = await _resolve_upload_bytes(
-            filename, mime_type, tool_context
+            filename, mime_type, ctx
         )
         df = _bytes_to_df(raw, resolved_name, resolved_mime)
     except Exception as exc:
+        # No *new* upload found. If a dataset is already loaded — the orchestrator
+        # auto-ingested the upload via the before-agent callback (D20), then a specialist
+        # was still asked to "load" it — report that success instead of a spurious
+        # "no file found", so the agent works with the loaded data rather than telling
+        # the user the upload failed. Only genuinely-empty sessions surface the error.
+        if not is_secondary and state.current_dataset_key:
+            try:
+                return await _already_loaded_result(state, ctx)
+            except Exception:
+                pass
         return DatasetLoaderResult(
             success=False, step_name=STEP_NAME, error_message=str(exc),
         ).model_dump(mode="json")
@@ -98,7 +133,7 @@ async def ingest_uploaded_file(
     version = next_version(state.artifact_manifest, STEP_NAME)
     artifact_key = make_artifact_key(STEP_NAME, version, "dataset")
 
-    await save_artifact(artifact_key, df_to_parquet_bytes(df), tool_context)
+    await save_artifact(artifact_key, df_to_parquet_bytes(df), ctx)
 
     dataset_version = DatasetVersion(
         artifact_key=artifact_key,
@@ -140,8 +175,8 @@ async def ingest_uploaded_file(
     )
     state.transformation_logs.append(log)
 
-    if tool_context:
-        set_session_state(state, tool_context)
+    if ctx:
+        set_session_state(state, ctx)
 
     schema_summary = [
         {
@@ -163,6 +198,31 @@ async def ingest_uploaded_file(
         confidence=1.0,
         log=log,
         schema_summary=schema_summary,
+    ).model_dump(mode="json")
+
+
+async def _already_loaded_result(state: AgentSessionState, ctx) -> dict:
+    """Success result describing the already-loaded current dataset — used when a
+    specialist is asked to "load" an upload the orchestrator already auto-ingested (D20)."""
+    df = parquet_bytes_to_df(await load_artifact(state.current_dataset_key, ctx))
+    rows, cols = df.shape
+    schema_summary = [
+        {
+            "col": col,
+            "dtype": str(df[col].dtype),
+            "sample": str(df[col].dropna().iloc[0]) if not df[col].dropna().empty else "",
+        }
+        for col in df.columns
+    ]
+    return DatasetLoaderResult(
+        success=True,
+        step_name=STEP_NAME,
+        output_artifact_key=state.current_dataset_key,
+        shape_before=ShapeInfo(rows=0, cols=0),
+        shape_after=ShapeInfo(rows=rows, cols=cols),
+        confidence=1.0,
+        schema_summary=schema_summary,
+        warnings=["The uploaded file is already ingested as the current dataset."],
     ).model_dump(mode="json")
 
 

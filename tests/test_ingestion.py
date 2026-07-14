@@ -10,12 +10,15 @@ working load_artifact) and let artifact *saving* fall back to ARTIFACTS_DIR.
 from __future__ import annotations
 
 import io
+import os
 
 import pandas as pd
 import pytest
 from google.genai import types
 
 from tools.ingestion import ingest_uploaded_file
+from tools.upload_callback import ingest_upload_callback
+from tools.artifact_utils import load_artifact, parquet_bytes_to_df
 
 
 def _csv_bytes() -> bytes:
@@ -125,3 +128,104 @@ async def test_ingest_no_file_present_errors():
     res = await ingest_uploaded_file(filename="missing.csv", tool_context=ctx)
     assert res["success"] is False
     assert "No uploaded file found" in res["error_message"]
+
+
+# ---------------------------------------------------------------------------
+# Upload auto-ingest callback (D20) — CallbackContext is duck-typed the same way
+# (user_content / state / save_artifact / load_artifact), so _InlineCtx doubles
+# as a fake CallbackContext.
+# ---------------------------------------------------------------------------
+
+class _TextOnlyCtx:
+    """Fake callback context whose user message has no inline upload (text only)."""
+
+    def __init__(self):
+        self.user_content = types.Content(role="user", parts=[types.Part(text="profile it")])
+        self.state: dict = {}
+
+    async def save_artifact(self, **_):
+        raise RuntimeError("force filesystem fallback")
+
+    async def load_artifact(self, **_):
+        raise RuntimeError("no artifact in this ctx")
+
+
+@pytest.mark.asyncio
+async def test_upload_callback_ingests_inline_upload():
+    ctx = _InlineCtx(_csv_bytes(), "data.csv", "text/csv")
+    result = await ingest_upload_callback(ctx)
+    assert result is None  # proceed normally; the upload is now the current dataset
+    state = ctx.state["pipeline_state"]
+    key = state["current_dataset_key"]
+    assert key and key.startswith("ingest__v1__dataset")
+    assert any(log["step_name"] == "ingest" for log in state["transformation_logs"])
+    df = parquet_bytes_to_df(await load_artifact(key, ctx))
+    assert df.shape == (3, 3)
+
+
+@pytest.mark.asyncio
+async def test_upload_callback_noop_without_upload():
+    ctx = _TextOnlyCtx()
+    result = await ingest_upload_callback(ctx)
+    assert result is None
+    st = ctx.state.get("pipeline_state")
+    assert st is None or st.get("current_dataset_key") is None  # nothing ingested
+
+
+@pytest.mark.asyncio
+async def test_upload_callback_swallows_bad_upload():
+    ctx = _InlineCtx(b"\x00\x01rubbish", "notes.txt", "application/octet-stream")
+    result = await ingest_upload_callback(ctx)  # must not raise
+    assert result is None
+    st = ctx.state.get("pipeline_state")
+    assert st is None or st.get("current_dataset_key") is None  # failed parse → unloaded
+
+
+def _llm_evals_enabled() -> bool:
+    return os.environ.get("RUN_LLM_EVALS") == "1" and bool(
+        os.environ.get("GOOGLE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    )
+
+
+@pytest.mark.llm
+@pytest.mark.skipif(not _llm_evals_enabled(), reason="set RUN_LLM_EVALS=1 + API key to run LLM evals")
+@pytest.mark.asyncio
+async def test_upload_ingested_and_profiled_through_orchestrator():
+    """D20 acceptance (live): an inline upload reaches the agent through the *real
+    orchestrator* — 0/3 before the before_agent_callback — and gets profiled, not
+    reported back to the user as a failed upload. The committed successor to
+    scratchpad/probe_upload.py."""
+    from google.adk.runners import Runner
+    from google.adk.sessions import InMemorySessionService
+    from google.adk.artifacts import InMemoryArtifactService
+    from datascience_agent.agent import root_agent
+    from datascience_agent.tools.artifact_utils import get_session_state
+
+    class _S:
+        def __init__(self, state):
+            self.state = state
+
+    app, uid, sid = "d20", "u", "s"
+    ss = InMemorySessionService()
+    await ss.create_session(app_name=app, user_id=uid, session_id=sid)
+    runner = Runner(agent=root_agent, app_name=app, session_service=ss,
+                    artifact_service=InMemoryArtifactService())
+    blob = types.Blob(data=_csv_bytes(), mime_type="text/csv", display_name="data.csv")
+    msg = types.Content(role="user", parts=[
+        types.Part(text="I uploaded a CSV file. Profile it — tell me the shape and which "
+                        "columns have missing values."),
+        types.Part(inline_data=blob),
+    ])
+    final = ""
+    async for ev in runner.run_async(user_id=uid, session_id=sid, new_message=msg):
+        if ev.is_final_response() and ev.content:
+            final = "".join(p.text or "" for p in (ev.content.parts or []) if p.text)
+
+    sess = await ss.get_session(app_name=app, user_id=uid, session_id=sid)
+    st = get_session_state(_S(sess.state))
+    steps = [lg.step_name for lg in st.transformation_logs]
+    assert "ingest" in steps, f"upload not auto-ingested; steps={steps}"
+    assert st.current_dataset_key, "upload did not become the current dataset"
+    assert not any(w in final.lower() for w in
+                   ("wasn't uploaded", "not uploaded", "no file", "couldn't find", "no uploaded")), \
+        f"agent reported a failed upload despite ingesting: {final!r}"

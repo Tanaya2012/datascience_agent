@@ -450,6 +450,25 @@ but re-bets the fix on LLM tool-choice reliability, which the live bug bash show
 flaky (hallucinated tool names), and contradicts D9's delegate-only orchestrator;
 Option D (`before_tool_callback` smuggling `user_content` into the sub-runner) — deep,
 fragile ADK-internal surgery the architecture deliberately routes around via shared state.
+**Implemented (M5 Phase 1, 2026-07-12):** `tools/upload_callback.py::ingest_upload_callback`
+wired as `root_agent.before_agent_callback`. Refactored the ingest core out of
+`tools/ingestion.py` into a shared `_ingest_and_register(ctx, …)` used by both the tool and
+the callback (a `CallbackContext` is duck-typed like `ToolContext` — `user_content`/`state`/
+`save_artifact`/`load_artifact`; verified). **Sub-finding (verified live, 3/3):** loading the
+data wasn't enough — the orchestrator, following "load & profile via data_steward," still
+*redundantly delegated* the load; `data_steward`'s `ingest_uploaded_file` (no inline Part
+across the boundary) returned "no file found", and the agent told the user the **upload
+failed even though the data was loaded**. Fixed **deterministically** (not via a prompt
+note — per the D19 principle): `ingest_uploaded_file` now returns an **"already loaded"
+success** describing the current dataset when it finds no new inline upload but
+`current_dataset_key` is set (`_already_loaded_result`; gated on `not is_secondary`, still
+errors on a genuinely empty session). After both, the live probe goes **0/3 → 3/3** (ingest
+*and* profile, no spurious failure). Tests: `tests/test_ingestion.py` — 3 deterministic
+callback tests + a `RUN_LLM_EVALS`-gated Runner-level acceptance test (the committed
+successor to `scratchpad/probe_upload.py`). **348 passed, 6 skipped.**
+**Rejected (during impl):** an orchestrator-instruction note that "uploads are auto-ingested"
+— speculative prompt-tuning on an unverified behavior (D19); the deterministic "already
+loaded" fallback fixes the behavior regardless of how the LLM phrases the delegation.
 
 ### 2026-07-11 — D21: M4.5 evalsets — error-recovery + multi-turn (closes M4.5)
 **Context:** M4.5's third task — promote bug-bash findings into regression evals. Two new

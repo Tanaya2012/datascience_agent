@@ -19,6 +19,7 @@ from google.adk.agents import LlmAgent  # type: ignore[import]
 from google.adk.tools.agent_tool import AgentTool  # type: ignore[import]
 
 from .configs.model_config import resolve_model
+from .tools.upload_callback import ingest_upload_callback
 from .sub_agents import (
     analysis_specialist,
     cleaning_specialist,
@@ -85,6 +86,10 @@ root_agent = LlmAgent(
         "specialist sub-agents over a shared artifact/audit layer."
     ),
     instruction=_SYSTEM_INSTRUCTION,
+    # Auto-ingest a web-UI upload before routing (D20): the inline file Part rides on
+    # the user message, which only the orchestrator sees — specialists don't (it doesn't
+    # cross the AgentTool boundary). The callback materializes it to the current dataset.
+    before_agent_callback=ingest_upload_callback,
     tools=[
         AgentTool(agent=data_steward),
         AgentTool(agent=cleaning_specialist),

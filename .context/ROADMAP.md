@@ -103,10 +103,14 @@ adversarial pass before modeling chains more mutations together.
       uploaded files don't survive the `AgentTool` delegation boundary (D20). Root-caused
       + fix approach chosen (Option A, `before_agent_callback` auto-ingest); **implementation
       deferred** (below).
-- [ ] **Fix upload-through-delegation (D20, Option A)** — `before_agent_callback` on the
-      orchestrator auto-ingests an inline upload → artifact + `current_dataset_key` before
-      routing. Acceptance: `probe_upload.py` 0/3 → 3/3 + a permanent live scenario + a
-      Runner-level unit test. *Deferred — its own slice.*
+- [x] **Fix upload-through-delegation (D20, Option A) — DONE (M5 Phase 1).**
+      `tools/upload_callback.py::ingest_upload_callback` (`before_agent_callback` on
+      `root_agent`) auto-ingests an inline upload → artifact + `current_dataset_key` before
+      routing (shared ingest core refactored out of `tools/ingestion.py`). Plus a
+      deterministic **"already loaded" fallback** in `ingest_uploaded_file` so a redundant
+      "load" delegation to `data_steward` succeeds instead of reporting a spurious failure.
+      Acceptance: live probe **0/3 → 3/3** (ingest + profile), now a gated Runner-level test.
+      **348 passed, 6 skipped.**
 - [ ] **Bug bash (live `adk web` UI)** — manual drag-drop round-trip in the browser
       (partly moot until D20 is fixed — the headless probe already reproduced the failure;
       the manual pass would confirm it from the real UI and re-verify after the fix).
