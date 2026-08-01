@@ -470,6 +470,68 @@ successor to `scratchpad/probe_upload.py`). **348 passed, 6 skipped.**
 — speculative prompt-tuning on an unverified behavior (D19); the deterministic "already
 loaded" fallback fixes the behavior regardless of how the LLM phrases the delegation.
 
+### 2026-07-14 — D22: M5a — Modeling specialist + train_model + state-mediated model registry
+**Decision:** Add the **6th specialist** (`sub_agents/modeling.py`) owning `train_model` +
+`run_python`. `tools/modeling.py::train_model` fits an **enum-constrained** sklearn estimator
+(`EstimatorKind`: logistic/rf/gb for classification; linear/rf/gb for regression — safe
+deterministic core, `run_python` for the long tail — matches D9/D12/D14) on the current
+dataset, evaluates on a held-out split, and:
+- persists the fitted **`Pipeline`** as a **joblib `"model"` artifact** (+ a JSON `ModelReport`);
+- **registers a `ModelRecord` in `AgentSessionState.models`** (new field, mirrors
+  `secondary_datasets`) — the milestone's headline: models flow between specialists via
+  **shared state, not lossy NL summaries** (state-mediated context; same principle as D13/D20);
+- is **read-only wrt the data** (rows unchanged; the model is a side artifact) → a
+  rows-unchanged `TransformationLog`, mirroring `statistical_test`.
+**Design details:** estimators fit inside a `Pipeline([SimpleImputer(mean), est])` so NaNs
+don't crash training (mirrors the `scale_features` guard); **non-numeric features are skipped
+with a warning** (encode via FE first) rather than erroring; regression requires a numeric
+target; stratified split for classification when class counts allow; metrics accuracy/f1
+(+roc_auc for binary) or r2/rmse/mae. Registry key auto-names `<estimator>_<target>` unless
+`model_name` given. Pinned `scikit-learn>=1.4.0` + `joblib` in `requirements.txt` (were used
+by `scale_features` but unpinned — latent gap closed).
+**Verified:** `tests/test_modeling.py` (7) reload the model artifact + assert the registry;
+topology tests updated (6 specialists); **359 passed, 6 skipped**. Live: orchestrator routes
+"train a model to predict X" → `modeling_specialist`, `ModelRecord` registered, and metrics
+are correct on real signal (0.80 accuracy on separable data; an all-monotone-features /
+parity-target synthetic gives 0.0 — a *data* artifact, not a metric bug → the M5d "predict
+churn" eval fixture must carry learnable signal).
+**Rejected:** `run_python`-only modeling (no audit/registry, not repeatable — against the
+hybrid contract); pickling models into session state (not serializable/huge — artifacts +
+a lightweight `ModelRecord` pointer instead); erroring on non-numeric features (skip+warn is
+friendlier and consistent with `scale_features`).
+
+### 2026-08-01 — D23: hallucinated tool name crashes the whole run (LOGGED; fix deferred to post-M5)
+**Status:** confirmed + root-caused from the live session DB; **fix deferred to after M5**
+(user's call). Approach decided: a **deterministic non-fatal guard** (option 2 below).
+**Symptom:** a live `adk web` session crashed with
+`ValueError: Tool 'value_counts' not found. Available tools: profile_dataset, explore_dataset,
+plot_dataset, statistical_test, run_python`, propagating up to `api_server.py` and killing
+the turn.
+**Root cause (two layers), from `.adk/session.db` session `eb1bca18…`:** deep in a
+metric-optimization loop, the orchestrator delegated *"Show the value counts for `returned`"*
+to the **analysis specialist**, whose LLM emitted a function call named **`value_counts`** — a
+pandas method it treated as a registered tool (correct path was `run_python` →
+`df['returned'].value_counts()`). ADK resolves tool names in
+`flows/llm_flows/functions.py::_get_tool` (line ~1064), which **`raise`s `ValueError` on an
+unknown name** instead of feeding a "tool not found" *response* back to the model. That
+exception propagates specialist-node → sub-runner → orchestrator → api_server, so an
+inherently-probabilistic **LLM slip becomes a fatal whole-run crash**, not a recoverable
+retry. (The bad call never persisted as an event — it raised before ADK committed a
+function-response — so the trace ends exactly at the delegation that contained it.)
+**This is D19 finding (b) escalated:** "bare/dotted tool-name hallucination → ADK raises,
+kills the turn" (seen ~1/6 in the bug bash, deferred as an evalset seed). The live session
+proves it recurs in genuine multi-step use *and* is a hard crash, not graceful degradation.
+**Decided fix (post-M5) — deterministic non-fatal guard (option 2):** turn an unknown-tool
+`ValueError` into a tool-response fed back to the model ("no such tool `<name>`; use
+`run_python` for pandas ops") so it self-corrects, instead of crashing. NOTE for the
+implementer: `before_tool_callback` fires *after* tool resolution, so it **can't** catch a
+not-found — likely needs a thin wrapper around the specialist/root runner (or an ADK-version
+check for a built-in setting). Optionally pair with an instruction nudge ("there is no
+`value_counts`/`describe`/`groupby` tool — use `run_python`") to cut frequency, but the guard
+is the fix (don't rely on prompt-only for a crash — D15/D19/D20 principle).
+**Rejected (for now):** prompt-only mitigation (doesn't stop the crash); trying to enumerate
+every hallucinable pandas name as a shim (unbounded).
+
 ### 2026-07-11 — D21: M4.5 evalsets — error-recovery + multi-turn (closes M4.5)
 **Context:** M4.5's third task — promote bug-bash findings into regression evals. Two new
 ADK evalsets wired into `tests/test_eval.py` (structural parse always runs;

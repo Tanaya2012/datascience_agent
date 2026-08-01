@@ -46,6 +46,7 @@ class TaskType(str, Enum):
     bin_columns = "bin_columns"          # feature engineering (M4b)
     engineer_datetime_features = "engineer_datetime_features"  # feature engineering (M4b)
     statistical_test = "statistical_test"  # hypothesis tests (M4c)
+    train_model = "train_model"          # sklearn train/eval (M5)
 
 
 class PipelineStatus(str, Enum):
@@ -167,6 +168,25 @@ class StatTestType(str, Enum):
 class KaggleSource(str, Enum):
     dataset = "dataset"          # a Kaggle dataset (ref "owner/slug")
     competition = "competition"  # a Kaggle competition (ref = competition id)
+
+
+class ModelTask(str, Enum):
+    """Supervised learning task (M5). Clustering arrives in M5b."""
+    classification = "classification"
+    regression = "regression"
+
+
+class EstimatorKind(str, Enum):
+    """Enum-constrained estimator catalog (M5) — the safe deterministic core; the
+    run_python escape hatch covers anything outside it."""
+    # classification
+    logistic_regression = "logistic_regression"
+    random_forest = "random_forest"
+    gradient_boosting = "gradient_boosting"
+    # regression
+    linear_regression = "linear_regression"
+    random_forest_regressor = "random_forest_regressor"
+    gradient_boosting_regressor = "gradient_boosting_regressor"
 
 
 # ---------------------------------------------------------------------------
@@ -575,6 +595,49 @@ class StatTestResult(BaseToolResult):
     stats_artifact_key: str | None = None    # JSON artifact holding the StatTestReport
 
 
+class ModelReport(BaseModel):
+    """Rich per-run output of a train / evaluate / auto-select run (M5)."""
+    task: ModelTask
+    estimator: EstimatorKind
+    target: str | None = None
+    features: list[str] = []
+    metrics: dict[str, float] = {}               # test-set metrics (accuracy/f1/roc_auc or r2/rmse/mae)
+    cv_metrics: dict[str, float] = {}            # cross-validation summary (M5b evaluate)
+    feature_importances: dict[str, float] = {}   # M5b
+    leaderboard: list[dict[str, Any]] = []       # M5c auto_select candidates
+    n_train: int = 0
+    n_test: int = 0
+    interpretation: str = ""                     # plain-English summary
+
+
+class ModelRecord(BaseModel):
+    """A trained model in the session registry (state-mediated context, M5).
+
+    Carries a fitted model between specialists via shared state — not lossy NL
+    summaries. The fitted estimator itself lives as a joblib artifact keyed by
+    ``model_artifact_key``; this record is the durable, serializable pointer + metrics.
+    """
+    name: str
+    model_artifact_key: str
+    task: ModelTask
+    estimator: EstimatorKind
+    target: str | None = None                    # None for unsupervised (M5b)
+    features: list[str] = []
+    metrics: dict[str, float] = {}
+    n_train: int = 0
+    n_test: int = 0
+    train_dataset_key: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ModelResult(BaseToolResult):
+    """Result of train_model / evaluate_model / auto_select_model (M5)."""
+    model_name: str | None = None                # registry key in AgentSessionState.models
+    model_artifact_key: str | None = None        # joblib bytes of the fitted estimator
+    report_artifact_key: str | None = None       # JSON ModelReport artifact
+    report: ModelReport | None = None
+
+
 # ---------------------------------------------------------------------------
 # G. AgentSessionState
 # ---------------------------------------------------------------------------
@@ -593,5 +656,6 @@ class AgentSessionState(BaseModel):
 
     artifact_manifest: ArtifactManifest = Field(default_factory=ArtifactManifest)
     secondary_datasets: dict[str, DatasetVersion] = {}   # name → DatasetVersion
+    models: dict[str, ModelRecord] = {}                  # name → ModelRecord (M5 registry)
     transformation_logs: list[TransformationLog] = []
     user_clarifications: dict[str, Any] = {}             # freeform intake metadata

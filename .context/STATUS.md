@@ -3,11 +3,12 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-12
-**Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 done: **D20 upload fix
-shipped** (`before_agent_callback` auto-ingest + "already loaded" fallback; live 0/3 → 3/3) —
-**348 passed, 6 skipped**. Next: Phase 2 (M5a) — Modeling specialist + `train_model` +
-model registry in `AgentSessionState`. M4.5 closed (D17–D21).
+**Last updated:** 2026-07-14
+**Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20 upload fix) + **M5a
+(D22) done**: 6th **Modeling specialist** + `train_model` (clf/reg) + **`ModelRecord`
+registry in `AgentSessionState`** + `"model"` artifact + pinned sklearn/joblib —
+**359 passed, 6 skipped**; live routing + registry verified. Next: **M5b** — `evaluate_model`
+(CV + feature importance) + clustering. M4.5 closed (D17–D21).
 **Branch:** main
 
 ## How to run
@@ -207,12 +208,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
     controlled dir (the exact capability the MCP lacked).
 
 ## In progress
-- **M5 — Modeling.** Phase 1 (D20 upload fix) ✅ done. **Next: Phase 2 (M5a)** — Modeling
-  specialist (6th) + `train_model` (clf/reg) + `ModelRecord` registry in `AgentSessionState`
-  + `"model"` artifact type + pin `scikit-learn`/`joblib`. Plan:
-  `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
-- Optional follow-up (non-blocking): manual `adk web` upload-drag-drop pass (now that D20 is
-  fixed, this would confirm the browser round-trip end-to-end).
+- **M5 — Modeling.** Phase 1 (D20) ✅ + M5a (D22, Modeling specialist + `train_model` +
+  registry) ✅. **Next: M5b** — `evaluate_model` (CV + feature importance) + clustering
+  (kmeans) in `train_model`; then M5c (predict + AutoML-lite), M5d (chain + churn eval +
+  kernel eviction + docs). Plan: `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
+- Optional follow-up (non-blocking): manual `adk web` upload-drag-drop pass (confirms the
+  browser round-trip now that D20 is fixed).
 
 ## M4.5 live bug-bash result (D19)
 - `scripts/live_bug_bash.py` — 10 adversarial scenarios × N repeats through the real
@@ -268,6 +269,12 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   decision), autonomy levels, L4 executor, and D8 artifact alignment. See ROADMAP.
 
 ## Open issues / notes
+- **D23 (logged 2026-08-01; fix deferred to post-M5):** a specialist LLM hallucinating an
+  unregistered tool name (live: analysis specialist called `value_counts`) makes ADK `raise`
+  in `_get_tool` → **the whole run crashes** (not graceful). Root-caused from `.adk/session.db`
+  session `eb1bca18…`; escalation of D19(b). Decided fix: deterministic non-fatal guard
+  (convert unknown-tool ValueError → fed-back "use run_python" response). See DECISIONS D23,
+  ROADMAP backlog.
 - **Smoke test passed (2026-05-31):** `scripts/smoke_test.py` drove root_agent via ADK
   Runner on gemini-2.0-flash → called `dataset_loader` + `profile_dataset`, correct final
   answer. The conversational/tool-calling loop works end-to-end.

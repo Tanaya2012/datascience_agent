@@ -16,6 +16,7 @@ from .feature_engineering import (
     build_feature_engineering_specialist,
     feature_engineering_specialist,
 )
+from .modeling import build_modeling_specialist, modeling_specialist
 from .reporting import build_reporting_specialist, reporting_specialist
 
 __all__ = [
@@ -27,6 +28,8 @@ __all__ = [
     "analysis_specialist",
     "build_feature_engineering_specialist",
     "feature_engineering_specialist",
+    "build_modeling_specialist",
+    "modeling_specialist",
     "build_reporting_specialist",
     "reporting_specialist",
 ]

@@ -29,7 +29,7 @@ class TestOrchestratorTopology:
     def test_root_tools_are_all_agent_tools(self):
         from datascience_agent.agent import root_agent
 
-        assert len(root_agent.tools) == 5
+        assert len(root_agent.tools) == 6
         assert all(isinstance(t, AgentTool) for t in root_agent.tools)
 
     def test_root_delegates_to_the_specialists(self):
@@ -41,6 +41,7 @@ class TestOrchestratorTopology:
             "cleaning_specialist",
             "analysis_specialist",
             "feature_engineering_specialist",
+            "modeling_specialist",
             "reporting_specialist",
         }
 
@@ -97,6 +98,10 @@ class TestSpecialistTooling:
             "engineer_datetime_features",
             "run_python",
         }
+
+    def test_modeling_specialist_tools(self):
+        tools = _function_tool_names(self._specialist("modeling_specialist"))
+        assert tools == {"train_model", "run_python"}
 
     def test_reporting_specialist_tools(self):
         tools = _function_tool_names(self._specialist("reporting_specialist"))

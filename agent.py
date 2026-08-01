@@ -25,6 +25,7 @@ from .sub_agents import (
     cleaning_specialist,
     data_steward,
     feature_engineering_specialist,
+    modeling_specialist,
     reporting_specialist,
 )
 
@@ -45,6 +46,9 @@ tools yourself — you route to a specialist and reflect on what it returns.
 - **feature_engineering_specialist** — transforms columns into model-ready
   features: encoding (one-hot/label/target) and scaling (standard/minmax/robust).
   Use to prepare data for modeling.
+- **modeling_specialist** — trains and evaluates predictive models (classification /
+  regression) with scikit-learn, registering fitted models in shared state. Use for
+  "train / predict / build a model / how well can we predict X" requests.
 - **reporting_specialist** — exports the cleaned dataset + audit logs + quality
   report to disk and returns file paths.
 
@@ -95,6 +99,7 @@ root_agent = LlmAgent(
         AgentTool(agent=cleaning_specialist),
         AgentTool(agent=analysis_specialist),
         AgentTool(agent=feature_engineering_specialist),
+        AgentTool(agent=modeling_specialist),
         AgentTool(agent=reporting_specialist),
     ],
 )

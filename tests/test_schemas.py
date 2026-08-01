@@ -131,8 +131,10 @@ class TestEnums:
         assert TaskType.bin_columns == "bin_columns"
         assert TaskType.engineer_datetime_features == "engineer_datetime_features"
         assert TaskType.statistical_test == "statistical_test"
-        # +run_python (M1) +explore/plot (M3) +encode/scale/bin/datetime (M4ab) +stat test (M4c)
-        assert len(TaskType) == 16
+        assert TaskType.train_model == "train_model"
+        # +run_python (M1) +explore/plot (M3) +encode/scale/bin/datetime (M4ab)
+        # +stat test (M4c) +train_model (M5)
+        assert len(TaskType) == 17
 
     def test_association_method_is_superset_of_correlation_method(self):
         from tools.schemas import AssociationMethod, CorrelationMethod

@@ -16,6 +16,7 @@ from datascience_agent.sub_agents import (
     build_cleaning_specialist,
     build_data_steward,
     build_feature_engineering_specialist,
+    build_modeling_specialist,
     build_reporting_specialist,
 )
 
@@ -55,6 +56,7 @@ BUILDERS = {
             "run_python",
         },
     ),
+    "modeling_specialist": (build_modeling_specialist, {"train_model", "run_python"}),
     "reporting_specialist": (build_reporting_specialist, {"generate_output"}),
 }
 

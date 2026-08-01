@@ -127,15 +127,20 @@ adversarial pass before modeling chains more mutations together.
       (`RUN_LLM_EVALS`-gated). **Both live-verified green.** Encoded only the *stable*
       behaviors; intermittent findings stay harness-monitored (D21). **345 passed.**
 
-## M5 — Modeling
-- [ ] sklearn train/eval (classification/regression/clustering), split, CV, metrics, feature importance
-- [ ] Model-artifact persistence; optional AutoML-lite
-- [ ] **Model registry in `AgentSessionState`** — so trained models flow between specialists
-      via shared state, not lossy NL summaries (mitigates delegation amnesia; see ARCHITECTURE
-      "state-mediated context")
-- [ ] **Kernel eviction** — idle-TTL or shutdown-on-session-end in the `run_python` kernel
-      registry (long-lived `adk web` currently leaks one subprocess per session)
-- [ ] Unit tests + "predict churn" eval
+## M5 — Modeling  *(Standard + AutoML-lite; phased per the approved plan)*
+- [x] **Phase 1 — D20 upload fix** (see above).
+- [x] **M5a — Modeling specialist + `train_model` + registry (D22).** 6th specialist
+      (`sub_agents/modeling.py`); `tools/modeling.py::train_model` (classification/regression,
+      enum estimators, train/test split, metrics accuracy/f1/roc_auc or r2/rmse/mae, NaN-safe
+      `Pipeline` imputer) → joblib `"model"` artifact + JSON report; **`ModelRecord` registry
+      in `AgentSessionState.models`** (state-mediated). Pinned `scikit-learn`/`joblib`.
+      `tests/test_modeling.py` (7) + topology updated (6 specialists). **359 passed.**
+      Live-verified: orchestrator routes "train …" → modeling_specialist, registry populates,
+      metrics correct on real signal.
+- [ ] **M5b** — `evaluate_model` (CV + feature importance) + clustering (kmeans) in train_model.
+- [ ] **M5c** — `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite).
+- [ ] **M5d** — cross-specialist chain + "predict churn" eval (fixture needs *learnable* signal)
+      + **kernel eviction** (idle-TTL in the `run_python` registry) + docs; close M5.
 
 ## M6 — Reporting, memory, reflection, polish  *(phase this — it's ~3 milestones in a coat)*
 - [ ] Full analysis report + reproducible notebook export
@@ -155,6 +160,12 @@ adversarial pass before modeling chains more mutations together.
 
 ## Backlog — deferred enhancements (not milestone-bound)
 Cross-cutting gaps surfaced during development; slot into a milestone when prioritized.
+- [ ] **Hallucinated tool name = non-fatal (D23) — do right after M5.** A specialist LLM
+      emitting an unregistered tool name (e.g. `value_counts`) makes ADK `raise` and crash the
+      whole run (live `adk web` crash; escalation of D19(b)). Fix: a deterministic guard that
+      converts the unknown-tool `ValueError` into a fed-back "no such tool; use run_python"
+      response so the model self-corrects. `before_tool_callback` can't catch it (fires after
+      resolution) — needs a runner wrapper / ADK-version check. See DECISIONS D23.
 - [ ] **Cleaning: value-level text normalization** (Cleaning specialist) — a tool to clean
       *cell values* (trim whitespace, fix capitalization/case, collapse inconsistent
       categories like Region `" north "`/`"North"`). Today `standardize_formats` only touches

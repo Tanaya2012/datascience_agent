@@ -23,6 +23,11 @@ xlrd>=2.0.0           # Excel (.xls) support
 matplotlib>=3.8.0
 scipy>=1.11.0
 
+# Feature engineering (M4) + modeling (M5) — encode/scale + train/eval; joblib
+# persists fitted models as artifacts. (Previously present in the env but unpinned.)
+scikit-learn>=1.4.0
+joblib>=1.3.0
+
 # Optional: fuzzy deduplication
 rapidfuzz>=3.6.0
 
