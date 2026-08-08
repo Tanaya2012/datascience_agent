@@ -16,7 +16,7 @@ from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
-    next_version,
+    next_report_version,
     parquet_bytes_to_df,
     resolve_dataset_key,
     save_artifact,
@@ -76,7 +76,7 @@ async def profile_dataset(
     profile = build_dataset_profile(df, artifact_key=dataset_artifact_key)
 
     # Persist profile as JSON artifact
-    version = next_version(state.artifact_manifest, STEP_NAME)
+    version = next_report_version(state, STEP_NAME)
     profile_key = make_artifact_key(STEP_NAME, version, "profile")
     profile_bytes = profile.model_dump_json().encode("utf-8")
 

@@ -532,6 +532,94 @@ is the fix (don't rely on prompt-only for a crash — D15/D19/D20 principle).
 **Rejected (for now):** prompt-only mitigation (doesn't stop the crash); trying to enumerate
 every hallucinable pandas name as a shim (unbounded).
 
+### 2026-08-02 — D24: M5b — evaluate_model (CV + feature importance) + clustering
+**Decision:** `tools/modeling.py::evaluate_model(model_name?, cv=5)` — a second read-only
+modeling tool (mirrors `statistical_test`/`train_model`: report artifact + rows-unchanged
+`TransformationLog`). It looks a model up **in the registry** (`AgentSessionState.models`,
+defaulting to the most recently trained) rather than taking a model as an argument — this is
+the M5 state-mediated design paying off: the orchestrator can say "cross-validate it" without
+threading any key or re-summarizing the model in prose (same principle as D13/D20/D22).
+It fits a **fresh** estimator of the record's kind across `cv` folds (mean ± std per metric)
+and reads feature importances from the **stored fitted artifact** (`feature_importances_`,
+else `|coef_|`, mean over classes when 2-D) — no refit for importances, so what's reported is
+the registered model, not a lookalike. New CV scores are folded back into the `ModelRecord` as
+`cv_*` keys (test metrics preserved alongside), so downstream steps read them from state.
+`train_model` gains **clustering**: `ModelTask.clustering` + `EstimatorKind.kmeans`, `target`
+now optional (validated internally — D13's "optional-with-internal-validation, don't reorder
+params" rule), a `n_clusters` param, fit on all rows (no split), scored by silhouette +
+inertia, registered with `target=None`.
+**Design details:** CV folds are **clamped, not failed** — for classification `cv` is reduced
+to the smallest class count with a warning (and errors only when a class has <2 rows), matching
+the project's "degrade with a visible warning" habit (D15/D17/D18); `roc_auc` is requested only
+for binary targets and **dropped-and-retried** if scoring raises, so an unusual label type
+costs one metric, not the whole evaluation. Clustering has no held-out CV analogue, so
+`evaluate_model` **re-scores** the fitted model on the current dataset (silhouette + cluster
+sizes) and says so in a warning instead of erroring or faking a CV number. Passing a `target`
+to clustering warns and excludes that column from the features rather than silently using it.
+Feature importances are skipped for clustering (kmeans exposes none) to avoid a noise warning.
+**Verified:** `tests/test_modeling.py` 7 → 15 (clustering registry/target-warning/error paths;
+CV metrics + ranked importances + registry merge; named vs. latest lookup; `|coef_|` path;
+fold reduction; clustering re-score; missing-feature error). Full suite **367 passed, 6
+skipped**. **Live:** load → train random forest → cross-validate through the real orchestrator
+— routed to `modeling_specialist`, logs `train_model` + `evaluate_model`, registry ends with
+both test and `cv_*` metrics, and importances rank `tenure_months` top (the generator's largest
+coefficient). *Fixture note (confirms the M5a finding):* the first probe fixture produced an
+all-zero `churn` column — the agent correctly refused to train and explained why, which is the
+right behavior but means the **M5d churn eval fixture must carry balanced, learnable signal**.
+**Rejected:** taking a model artifact key as an argument (re-introduces the key-threading
+problem D13 removed); refitting to obtain importances (would report a different model than the
+registered one); erroring when `cv` exceeds the smallest class (clamping + warning is friendlier
+and still honest); permutation importance (slower, needs a scoring choice — revisit if the
+`|coef_|`/tree signal proves insufficient); reporting a silhouette under the `cv_metrics` name
+for clustering (misleading — kept in `metrics` with an explicit warning).
+
+### 2026-08-02 — D25: read-only artifact versioning was broken (silent overwrite) — `next_report_version`
+**Context:** found while auditing M5b in response to "are you sure this is bug-free?" — not by a
+failing test. `next_version(manifest, step)` counts `manifest.versions[step]`, which **only
+dataset-producing tools ever append to**. Read-only tools have no `DatasetVersion` to register,
+so their manifest entry stays empty and `next_version` returned **1 on every call**: every run
+of a read-only tool reused the previous run's artifact key and overwrote it (ADK keeps an
+internal version and serves the newest; the local fallback overwrites the file — either way the
+older artifact is unreachable by key).
+**Why it mattered (the real bug):** `ModelRecord.model_artifact_key` (M5a) is a **durable
+pointer**. Train two models in one session and both records hold `train_model__v1__model`;
+the first record then resolves to the *second* model's bytes. Reproduced:
+`record a -> RandomForestClassifier (want LogisticRegression)`. M5a planted it, M5b made it
+reachable — `evaluate_model` is the first tool that *loads a model back by key*, so it would
+report model B's feature importances as model A's, and M5c's `predict_model` would predict with
+the wrong model. **The M5b tests missed it** because they only ever evaluated the most recently
+trained model, where the collision is invisible.
+**Decision:** add `artifact_utils.next_report_version(state, step_name)` — versions non-dataset
+artifacts by counting that step's `TransformationLog` entries (exactly one per successful call),
+giving a monotonic version without polluting the dataset-lineage manifest with fake
+`DatasetVersion`s. Applied to `train_model`/`evaluate_model` (correctness) **and** to the rest
+of the affected family: `profile_dataset`, `explore_dataset`, `statistical_test`,
+`validate_dataset`, `generate_output`. Same root cause, one line each; the most user-visible
+consequence there was losing before/after comparisons (profile or quality report run twice →
+only the later artifact survives). `plot_dataset` was already immune — it suffixes a uuid.
+`validate_dataset`'s `versions.setdefault(STEP_NAME, [])` is now vestigial (it appends nothing).
+**Guards:** unit test of the helper (`test_schemas.py`); two-models-distinct-artifacts +
+repeated-evaluations tests that load each key back and assert the *estimator type*
+(`test_modeling.py`); repeated-profiles test (`test_tools.py`). Plus **`scripts/fuzz_tools.py`
+now covers the modeling tools** (train clf/reg/clustering + evaluate, in `READONLY_STEPS`) with
+a new **INV-MODEL** invariant: no two registered models may share an artifact key.
+**Verified:** 373 passed, 6 skipped; fuzzer clean at 800 seeds. The new invariant was
+**mutation-tested** — reverting `train_model` to `next_version` made the fuzzer report INV-MODEL
+at seed 19 of 150, proving the modeling ops actually execute and the invariant can fail.
+**Also fixed (same audit):** an all-null feature column was silently dropped by the pipeline's
+imputer mid-fit, leaving the fitted estimator with fewer importances than `record.features`;
+the length-mismatch guard then discarded *all* importances. `train_model` now drops all-null
+feature columns up front with a warning (D18's "skip with a warning" pattern), keeping
+importances aligned.
+**Checked and found NOT broken:** `roc_auc` on binary **string** targets — sklearn infers
+`pos_label` from the fitted classes, so strings and non-0/1 numeric codings (`1/2`, `3/9`) all
+score fine. The drop-and-retry path in `_cross_validate` stays as cheap insurance but is not
+reachable via label typing; a test now pins the working behavior instead.
+**Rejected:** registering fake `DatasetVersion` entries for reports (pollutes lineage — the
+manifest means "dataset versions"); uuid-suffixing every report key like `plot_dataset` (loses
+the readable, ordered `__vN__` scheme and the ability to say "the second profile"); leaving the
+non-modeling tools alone (same bug, one-line fix, and the before/after comparison loss is real).
+
 ### 2026-07-11 — D21: M4.5 evalsets — error-recovery + multi-turn (closes M4.5)
 **Context:** M4.5's third task — promote bug-bash findings into regression evals. Two new
 ADK evalsets wired into `tests/test_eval.py` (structural parse always runs;

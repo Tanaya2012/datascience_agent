@@ -54,10 +54,12 @@ from tools.eda import explore_dataset
 from tools.stats import statistical_test
 from tools.validator import validate_dataset
 from tools.visualization import plot_dataset
+from tools.modeling import train_model, evaluate_model
 
 
+# Modeling tools are read-only wrt the data: the fitted model is a side artifact.
 READONLY_STEPS = {"profile_dataset", "explore_dataset", "statistical_test",
-                  "validate_dataset", "plot_dataset"}
+                  "validate_dataset", "plot_dataset", "train_model", "evaluate_model"}
 
 
 class _Ctx:
@@ -203,6 +205,28 @@ def choose_op(rng: random.Random, df: pd.DataFrame):
         ops.append(("plot_dataset", lambda ctx: plot_dataset(
             chart_kind="histogram", x=rng.choice(numeric), tool_context=ctx)))
 
+    # modeling (M5): read-only wrt the data — the model is a side artifact.
+    low_card = [c for c in df.columns
+                if 2 <= df[c].dropna().nunique() <= 10 and len(df[c].dropna()) >= 5]
+    if low_card and numeric:
+        tgt_c = rng.choice(low_card)
+        ops.append(("train_model", lambda ctx: train_model(
+            task="classification", target=tgt_c,
+            estimator=rng.choice([None, "logistic_regression", "random_forest"]),
+            test_size=rng.choice([0.2, 0.25, 0.4]), tool_context=ctx)))
+    if len(numeric) >= 2:
+        tgt_r = rng.choice(numeric)
+        ops.append(("train_model", lambda ctx: train_model(
+            task="regression", target=tgt_r,
+            estimator=rng.choice([None, "linear_regression", "random_forest_regressor"]),
+            tool_context=ctx)))
+    if numeric:
+        ops.append(("train_model", lambda ctx: train_model(
+            task="clustering", n_clusters=rng.randint(1, 5), tool_context=ctx)))
+    # Always offered: with no registered model this exercises the clean-error path.
+    ops.append(("evaluate_model", lambda ctx: evaluate_model(
+        cv=rng.randint(2, 6), tool_context=ctx)))
+
     return rng.choice(ops)
 
 
@@ -321,6 +345,13 @@ async def check_call(ctx, step, pre_df, pre_key, result):
         return [f"INV-CRASH: {step} returned non-result {type(result)}"]
     state = get_session_state(ctx)
     cur = state.current_dataset_key
+
+    # INV-MODEL: registry pointers must stay distinct — two ModelRecords sharing one
+    # artifact key means the older record silently resolves to the newer model.
+    model_keys = [rec.model_artifact_key for rec in state.models.values()]
+    if len(set(model_keys)) != len(model_keys):
+        findings.append(f"INV-MODEL: {len(model_keys)} registered models share "
+                        f"{len(set(model_keys))} artifact key(s) after {step}")
 
     if not result["success"]:
         if not result.get("error_message"):

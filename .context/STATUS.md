@@ -3,19 +3,21 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-07-14
-**Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20 upload fix) + **M5a
-(D22) done**: 6th **Modeling specialist** + `train_model` (clf/reg) + **`ModelRecord`
-registry in `AgentSessionState`** + `"model"` artifact + pinned sklearn/joblib —
-**359 passed, 6 skipped**; live routing + registry verified. Next: **M5b** — `evaluate_model`
-(CV + feature importance) + clustering. M4.5 closed (D17–D21).
+**Last updated:** 2026-08-02
+**Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
+(D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
+the registry**) + **clustering** (kmeans) in `train_model` — **367 passed, 6 skipped**;
+live-verified load → train → cross-validate through the real orchestrator. A post-M5b audit
+found + fixed a **silent artifact-overwrite bug** in all read-only tools (**D25**) — **373
+passed, 6 skipped**; fuzzer clean at 800 seeds *with modeling coverage added*. Next: **M5c** —
+`predict_model` + `auto_select_model` (AutoML-lite). M4.5 closed (D17–D21).
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **321 passed, 3 skipped** (skipped = 3 LLM evals; structural eval tests run always).
+  Last run: **367 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - Kaggle live smoke (tool-level, needs creds), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_kaggle` (search + download).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
@@ -207,11 +209,46 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   - **Live-verified:** real search + download of `heptapod/titanic` → file path returned from a
     controlled dir (the exact capability the MCP lacked).
 
+- **M5b complete (D24) — 367 passed, 6 skipped; live train→evaluate verified:**
+  - `tools/modeling.py::evaluate_model(model_name?, cv=5)` — reads a model **out of the
+    registry by name** (defaults to the most recent), cross-validates a fresh estimator of that
+    kind (mean ± std per metric), and ranks feature importances from the **stored fitted
+    artifact** (`feature_importances_` or `|coef_|`). CV scores fold back into the `ModelRecord`
+    as `cv_*` (test metrics kept). Folds are clamped to the smallest class with a warning;
+    `roc_auc` is binary-only and dropped-and-retried if it raises.
+  - `train_model` gains **clustering** — `ModelTask.clustering` + `EstimatorKind.kmeans`,
+    optional `target` (internal validation, D13 rule), `n_clusters`, silhouette + inertia,
+    registered with `target=None`. `evaluate_model` **re-scores** clustering models on the
+    current dataset (no CV analogue) and says so in a warning.
+  - Schemas: `TaskType.evaluate_model`; `ModelReport.cv_metrics`/`feature_importances` (already
+    reserved in M5a) now populated. Modeling specialist has 3 tools; orchestrator instruction
+    mentions clustering/importance routing. `tests/test_modeling.py` 7 → 15.
+
+- **Post-M5b audit (D25) — 373 passed, 6 skipped; fuzzer clean at 800 seeds:**
+  - **Real bug, fixed:** `next_version` counts a manifest only *dataset* tools append to, so
+    every read-only tool reused `<step>__v1__<type>` forever and overwrote its own prior
+    artifact. Fatal for `ModelRecord.model_artifact_key` (a durable pointer): two models shared
+    one key and the older record loaded the newer model. New
+    `artifact_utils.next_report_version(state, step)` counts the step's transformation logs;
+    applied to train/evaluate **and** profile/eda/stats/validate/output. `plot_dataset` was
+    already immune (uuid suffix).
+  - **Fuzzer extended to modeling** (`scripts/fuzz_tools.py`): train clf/reg/clustering +
+    evaluate, plus an **INV-MODEL** invariant (no two registered models share an artifact key).
+    **Mutation-tested** — reverting the fix makes it fire at seed 19/150.
+  - **Also fixed:** all-null feature columns are now dropped up front in `train_model` (the
+    imputer used to drop them mid-pipeline, which cost *all* feature importances).
+  - **Checked, not broken:** `roc_auc` on binary string/non-0-1 targets works (sklearn infers
+    `pos_label`); a test now pins that instead of my wrong assumption.
+
 ## In progress
-- **M5 — Modeling.** Phase 1 (D20) ✅ + M5a (D22, Modeling specialist + `train_model` +
-  registry) ✅. **Next: M5b** — `evaluate_model` (CV + feature importance) + clustering
-  (kmeans) in `train_model`; then M5c (predict + AutoML-lite), M5d (chain + churn eval +
-  kernel eviction + docs). Plan: `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
+- **M5 — Modeling.** Phase 1 (D20) ✅ + M5a (D22) ✅ + M5b (D24) ✅ + audit (D25) ✅. **Next: M5c** —
+  `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite);
+  then M5d (cross-specialist chain + churn eval + kernel eviction + docs). Plan:
+  `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
+- **For M5d:** the churn eval fixture must carry **balanced, learnable signal** — an M5b probe
+  fixture came out all-zero-target and the agent (correctly) refused to train, which would read
+  as an eval failure. Working recipe: standardize 3 drivers, `churn = (1.5·z(tickets) +
+  1.0·z(charges) − 1.8·z(tenure) + noise) > 0` → ~balanced, ~0.85 CV accuracy.
 - Optional follow-up (non-blocking): manual `adk web` upload-drag-drop pass (confirms the
   browser round-trip now that D20 is fixed).
 
@@ -259,12 +296,15 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   `deduplicate_dataset` (reports removed counts).
 
 ## Next
-- **M5 — Modeling (next milestone):** new Modeling specialist (6th) with sklearn train/eval;
-  model registry in `AgentSessionState` (state-mediated context, not NL summaries); kernel
-  eviction; "predict churn" eval. Reuse the mutating/read-only tool templates +
-  `FeatureTransformResult`/report patterns. Phased.
-- **Deferred M4.5 follow-ups (non-blocking):** implement the D20 upload fix (Option A);
-  optional manual `adk web` upload-drag-drop pass (user, ~5 min).
+- **M5c — `predict_model` + `auto_select_model`:** `predict_model` appends a prediction column
+  as a **new dataset version** (mutating, non-destructive — reuse `_finalize_transform`);
+  `auto_select_model` CVs the whole catalog for a task, refits the winner, registers it, and
+  returns a leaderboard (reuses `train_model`'s fit/metric internals + `evaluate_model`'s CV —
+  thin orchestration, no new ML code). Then **M5d** closes M5 (chain + churn eval + kernel
+  eviction + docs).
+- **After M5:** D23 (hallucinated tool name = non-fatal) — first backlog item.
+- **Deferred M4.5 follow-up (non-blocking):** manual `adk web` upload-drag-drop pass
+  (user, ~5 min) now that D20 is fixed.
 - **M6:** phase it — reporting/notebook export, cross-session memory, reflection (+ plan-schema
   decision), autonomy levels, L4 executor, and D8 artifact alignment. See ROADMAP.
 

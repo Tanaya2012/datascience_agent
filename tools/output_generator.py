@@ -21,7 +21,7 @@ from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
-    next_version,
+    next_report_version,
     parquet_bytes_to_df,
     resolve_dataset_key,
     save_artifact,
@@ -86,7 +86,7 @@ async def generate_output(
         ).model_dump(mode="json")
 
     rows, cols = df.shape
-    version = next_version(state.artifact_manifest, STEP_NAME)
+    version = next_report_version(state, STEP_NAME)
     warnings: list[str] = []
 
     # ── 1. CSV export ────────────────────────────────────────────────────────

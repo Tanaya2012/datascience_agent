@@ -191,6 +191,20 @@ class TestDataProfiler:
         assert result["profile"] is not None
         assert result["profile"]["shape"] == [5, 4]
 
+    async def test_repeated_profiles_do_not_share_one_artifact_key(self, mock_ctx, csv_file):
+        """Profiling before and after cleaning must yield two comparable artifacts —
+        read-only steps register no DatasetVersion, so a manifest-counting version
+        would hand both runs the same key and lose the first."""
+        from tools.dataset_loader import dataset_loader
+        from tools.data_profiler import profile_dataset
+
+        load_r = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
+        first = await profile_dataset(load_r["output_artifact_key"], tool_context=mock_ctx)
+        second = await profile_dataset(load_r["output_artifact_key"], tool_context=mock_ctx)
+
+        assert first["success"] and second["success"]
+        assert first["profile_artifact_key"] != second["profile_artifact_key"]
+
     async def test_profile_contains_all_columns(self, csv_file):
         from tools.dataset_loader import dataset_loader
         from tools.data_profiler import profile_dataset

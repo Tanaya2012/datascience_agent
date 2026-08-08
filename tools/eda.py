@@ -19,7 +19,7 @@ from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
-    next_version,
+    next_report_version,
     parquet_bytes_to_df,
     resolve_dataset_key,
     save_artifact,
@@ -92,7 +92,7 @@ async def explore_dataset(
     if target and target not in df.columns:
         warnings.append(f"Target column '{target}' not found — target analysis skipped.")
 
-    version = next_version(state.artifact_manifest, STEP_NAME)
+    version = next_report_version(state, STEP_NAME)
     eda_key = make_artifact_key(STEP_NAME, version, "eda")
     await save_artifact(eda_key, report.model_dump_json().encode("utf-8"), tool_context)
 

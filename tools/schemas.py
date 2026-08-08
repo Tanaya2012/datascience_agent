@@ -47,6 +47,7 @@ class TaskType(str, Enum):
     engineer_datetime_features = "engineer_datetime_features"  # feature engineering (M4b)
     statistical_test = "statistical_test"  # hypothesis tests (M4c)
     train_model = "train_model"          # sklearn train/eval (M5)
+    evaluate_model = "evaluate_model"    # cross-validation + feature importance (M5b)
 
 
 class PipelineStatus(str, Enum):
@@ -171,9 +172,10 @@ class KaggleSource(str, Enum):
 
 
 class ModelTask(str, Enum):
-    """Supervised learning task (M5). Clustering arrives in M5b."""
+    """Learning task (M5). Clustering is unsupervised — it takes no `target` (M5b)."""
     classification = "classification"
     regression = "regression"
+    clustering = "clustering"
 
 
 class EstimatorKind(str, Enum):
@@ -187,6 +189,8 @@ class EstimatorKind(str, Enum):
     linear_regression = "linear_regression"
     random_forest_regressor = "random_forest_regressor"
     gradient_boosting_regressor = "gradient_boosting_regressor"
+    # clustering (M5b)
+    kmeans = "kmeans"
 
 
 # ---------------------------------------------------------------------------

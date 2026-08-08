@@ -137,9 +137,30 @@ def make_artifact_key(
 
 
 def next_version(manifest: ArtifactManifest, step_name: str) -> int:
-    """Return the next version number for a step (1-based)."""
+    """Return the next version number for a *dataset-producing* step (1-based).
+
+    Only valid for tools that register a `DatasetVersion` in the manifest on every
+    call. Read-only tools must use `next_report_version` instead — see below.
+    """
     existing = manifest.versions.get(step_name, [])
     return len(existing) + 1
+
+
+def next_report_version(state: AgentSessionState, step_name: str) -> int:
+    """Return the next version number for a *non-dataset* artifact (model, report,
+    profile, plot, stats) — 1-based.
+
+    Read-only tools have no `DatasetVersion` to register, so their manifest entry
+    stays empty and `next_version` would return 1 on every call: each run would
+    silently overwrite the previous run's artifact key. That is harmless for a
+    throwaway report but corrupting for a **durable pointer** like
+    `ModelRecord.model_artifact_key`, where two trained models would end up sharing
+    one key and the older record would resolve to the newer model's bytes.
+
+    Counting this step's `TransformationLog` entries (exactly one per successful
+    call) gives a monotonic version without polluting the dataset-lineage manifest.
+    """
+    return sum(1 for log in state.transformation_logs if log.step_name == step_name) + 1
 
 
 # ---------------------------------------------------------------------------

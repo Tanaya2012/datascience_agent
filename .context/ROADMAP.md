@@ -137,7 +137,15 @@ adversarial pass before modeling chains more mutations together.
       `tests/test_modeling.py` (7) + topology updated (6 specialists). **359 passed.**
       Live-verified: orchestrator routes "train …" → modeling_specialist, registry populates,
       metrics correct on real signal.
-- [ ] **M5b** — `evaluate_model` (CV + feature importance) + clustering (kmeans) in train_model.
+- [x] **M5b — `evaluate_model` (CV + feature importance) + clustering (D24).**
+      `tools/modeling.py::evaluate_model` cross-validates a **registered** model read out of
+      `AgentSessionState.models` by name (defaults to the most recent), reports mean ± std per
+      metric + ranked feature importances (tree `feature_importances_` or `|coef_|`), and folds
+      the CV scores back into the `ModelRecord` as `cv_*`. `train_model` gains **clustering**
+      (`kmeans`, no target, `n_clusters`) scored by silhouette + inertia; clustering models are
+      re-scored (not cross-validated) by `evaluate_model`. `tests/test_modeling.py` (7 → 15).
+      **367 passed, 6 skipped.** Live-verified: load → train → cross-validate through the real
+      orchestrator, registry carries test + `cv_*` metrics, importances ranked correctly.
 - [ ] **M5c** — `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite).
 - [ ] **M5d** — cross-specialist chain + "predict churn" eval (fixture needs *learnable* signal)
       + **kernel eviction** (idle-TTL in the `run_python` registry) + docs; close M5.

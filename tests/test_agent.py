@@ -101,7 +101,7 @@ class TestSpecialistTooling:
 
     def test_modeling_specialist_tools(self):
         tools = _function_tool_names(self._specialist("modeling_specialist"))
-        assert tools == {"train_model", "run_python"}
+        assert tools == {"train_model", "evaluate_model", "run_python"}
 
     def test_reporting_specialist_tools(self):
         tools = _function_tool_names(self._specialist("reporting_specialist"))

@@ -56,7 +56,7 @@ BUILDERS = {
             "run_python",
         },
     ),
-    "modeling_specialist": (build_modeling_specialist, {"train_model", "run_python"}),
+    "modeling_specialist": (build_modeling_specialist, {"train_model", "evaluate_model", "run_python"}),
     "reporting_specialist": (build_reporting_specialist, {"generate_output"}),
 }
 

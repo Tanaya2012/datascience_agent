@@ -99,9 +99,9 @@ def _sample_dataset_version() -> DatasetVersion:
     )
 
 
-def _sample_transformation_log() -> TransformationLog:
+def _sample_transformation_log(step_name: str = "handle_missing_values") -> TransformationLog:
     return TransformationLog(
-        step_name="handle_missing_values",
+        step_name=step_name,
         task_type=TaskType.handle_missing_values,
         rows_before=100,
         rows_after=95,
@@ -132,9 +132,10 @@ class TestEnums:
         assert TaskType.engineer_datetime_features == "engineer_datetime_features"
         assert TaskType.statistical_test == "statistical_test"
         assert TaskType.train_model == "train_model"
+        assert TaskType.evaluate_model == "evaluate_model"
         # +run_python (M1) +explore/plot (M3) +encode/scale/bin/datetime (M4ab)
-        # +stat test (M4c) +train_model (M5)
-        assert len(TaskType) == 17
+        # +stat test (M4c) +train_model (M5a) +evaluate_model (M5b)
+        assert len(TaskType) == 18
 
     def test_association_method_is_superset_of_correlation_method(self):
         from tools.schemas import AssociationMethod, CorrelationMethod
@@ -623,6 +624,23 @@ class TestArtifactKeyGeneration:
         v = _sample_dataset_version()
         manifest = ArtifactManifest(versions={"dataset_loader": [v]})
         assert next_version(manifest, "handle_missing_values") == 1
+
+    def test_next_report_version_counts_logs_not_the_manifest(self):
+        """Read-only tools register no DatasetVersion, so a manifest-counting version
+        would stay at 1 forever and each call would overwrite the previous call's
+        artifact — silently corrupting durable pointers like ModelRecord."""
+        from tools.artifact_utils import next_report_version
+        from tools.schemas import AgentSessionState
+
+        state = AgentSessionState()
+        assert next_report_version(state, "train_model") == 1
+
+        state.transformation_logs.append(_sample_transformation_log(step_name="train_model"))
+        assert next_report_version(state, "train_model") == 2
+        assert next_report_version(state, "evaluate_model") == 1      # per-step counter
+
+        # The manifest stays empty for read-only steps — that is exactly the trap.
+        assert next_version(state.artifact_manifest, "train_model") == 1
 
 
 # ---------------------------------------------------------------------------

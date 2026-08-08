@@ -18,7 +18,7 @@ from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
-    next_version,
+    next_report_version,
     parquet_bytes_to_df,
     resolve_dataset_key,
     save_artifact,
@@ -168,7 +168,7 @@ async def validate_dataset(
     passed = quality_score >= 70.0
 
     # Save quality report key
-    version = next_version(state.artifact_manifest, STEP_NAME)
+    version = next_report_version(state, STEP_NAME)
     report_key = make_artifact_key(STEP_NAME, version, "report")
 
     report_data = {

@@ -26,7 +26,7 @@ from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
-    next_version,
+    next_report_version,
     parquet_bytes_to_df,
     resolve_dataset_key,
     save_artifact,
@@ -100,7 +100,7 @@ async def statistical_test(
     except ValueError as exc:
         return _err(str(exc))
 
-    version = next_version(state.artifact_manifest, STEP_NAME)
+    version = next_report_version(state, STEP_NAME)
     stats_key = make_artifact_key(STEP_NAME, version, "stats")
     await save_artifact(stats_key, report.model_dump_json().encode("utf-8"), tool_context)
 
