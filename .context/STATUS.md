@@ -3,21 +3,29 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-08-02
+**Last updated:** 2026-08-06
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
-the registry**) + **clustering** (kmeans) in `train_model` — **367 passed, 6 skipped**;
-live-verified load → train → cross-validate through the real orchestrator. A post-M5b audit
-found + fixed a **silent artifact-overwrite bug** in all read-only tools (**D25**) — **373
-passed, 6 skipped**; fuzzer clean at 800 seeds *with modeling coverage added*. Next: **M5c** —
-`predict_model` + `auto_select_model` (AutoML-lite). M4.5 closed (D17–D21).
+the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
+cross-validate through the real orchestrator. A post-M5b audit found + fixed a **silent
+artifact-overwrite bug** in all read-only tools (**D25**) — **373 passed, 6 skipped**;
+fuzzer clean at 800 seeds *with modeling coverage added*. Next: **M5c** — `predict_model` +
+`auto_select_model` (AutoML-lite). M4.5 closed (D17–D21).
+**Also landed (out-of-milestone): planted-truth test corpus (D26)** — `scripts/datagen/`,
+12 scenarios emitting CSV + machine-checkable `.truth.json` answer keys, incl. 6 judgement
+traps. **461 passed, 6 skipped** (373 + 88 new). Delivers the M5d churn fixture.
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **367 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **461 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+- **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
+  `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
+  (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12
+  scenarios; `--tier smoke` generates the cheap 6; **`--verify` replays every answer key
+  against its CSV**. Contract + how to consume it: `scripts/datagen/README.md`.
 - Kaggle live smoke (tool-level, needs creds), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test_kaggle` (search + download).
 - LLM routing smoke (needs API key), from `/Users/tushar/interests`:
@@ -245,10 +253,14 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite);
   then M5d (cross-specialist chain + churn eval + kernel eviction + docs). Plan:
   `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
-- **For M5d:** the churn eval fixture must carry **balanced, learnable signal** — an M5b probe
-  fixture came out all-zero-target and the agent (correctly) refused to train, which would read
-  as an eval failure. Working recipe: standardize 3 drivers, `churn = (1.5·z(tickets) +
-  1.0·z(charges) − 1.8·z(tenure) + noise) > 0` → ~balanced, ~0.85 CV accuracy.
+- ~~**For M5d:** the churn eval fixture must carry **balanced, learnable signal**~~ —
+  **DONE (D26).** `scripts/datagen/` scenario `churn` implements exactly the recorded recipe
+  (`1.5·z(tickets) + 1.0·z(charges) − 1.8·z(tenure) + noise > 0`): **0.49 positive rate,
+  0.87 CV accuracy, 0.94 CV ROC-AUC, `tenure_months` top importance**, and region/plan
+  redrawn until provably independent of the target (χ² p > 0.25) so "region doesn't matter"
+  is a supportable answer. Generate with `--tier smoke`; the answer key is
+  `data/corpus/churn.truth.json`. `tests/test_datagen.py` guards both degenerate
+  directions — unlearnable *and* trivially perfect.
 - Optional follow-up (non-blocking): manual `adk web` upload-drag-drop pass (confirms the
   browser round-trip now that D20 is fixed).
 
@@ -303,6 +315,20 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
   thin orchestration, no new ML code). Then **M5d** closes M5 (chain + churn eval + kernel
   eviction + docs).
 - **After M5:** D23 (hallucinated tool name = non-fatal) — first backlog item.
+- **Test-data Phases B/C (D26; scoped out of Phase A, not started):** **B** = a
+  checksum-pinned real-data fetcher (`scripts/fetch_datasets.py`) for realism/scale/Excel/
+  encoding — UCI Bank Marketing (45k, `;`-delimited, real imbalance), UCI Online Retail
+  (541k, native `.xlsx`, filthy), seaborn-data; both hosts verified reachable. ⚠️ **Do not
+  use titanic/iris/tips as-is** — the LLM has memorized them and can answer without loading
+  the file (a passing test that proves nothing); rename columns + perturb values on ingest.
+  **C** = the capability sweep harness that consumes `prompts[].checks` from the answer keys
+  — the third regime after `live_bug_bash.py` ("did state stay coherent?") and the evalsets
+  ("did the reply resemble a reference?"): **"was the answer right?"**. Full design in
+  **DECISIONS D26** — the load-bearing part is that grading has **two channels**: read facts
+  out of **state/artifacts wherever possible** (`ModelRecord.cv_metrics`, report artifacts,
+  `transformation_logs`) and fall back to **prose only for judgement facts**. Build the
+  state channel first; prose extraction is the fragile part that would make it flaky.
+  N-repeat frequency reporting, tiered smoke/full, `RUN_LLM_EVALS`-gated.
 - **Deferred M4.5 follow-up (non-blocking):** manual `adk web` upload-drag-drop pass
   (user, ~5 min) now that D20 is fixed.
 - **M6:** phase it — reporting/notebook export, cross-session memory, reflection (+ plan-schema

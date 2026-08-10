@@ -147,8 +147,35 @@ adversarial pass before modeling chains more mutations together.
       **367 passed, 6 skipped.** Live-verified: load → train → cross-validate through the real
       orchestrator, registry carries test + `cv_*` metrics, importances ranked correctly.
 - [ ] **M5c** — `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite).
-- [ ] **M5d** — cross-specialist chain + "predict churn" eval (fixture needs *learnable* signal)
-      + **kernel eviction** (idle-TTL in the `run_python` registry) + docs; close M5.
+- [ ] **M5d** — cross-specialist chain + "predict churn" eval + **kernel eviction**
+      (idle-TTL in the `run_python` registry) + docs; close M5.
+      *(The learnable-signal fixture this blocked on is **done** — D26's `churn` scenario:
+      0.49 positive rate, 0.87 CV accuracy, `tenure_months` top importance.)*
+
+## ✅ Test-data corpus — Phase A  *(COMPLETE — D26; 461 passed, 6 skipped)*
+Out-of-milestone. Rationale: the repo had **no dataset with planted, learnable signal** —
+the only classification target was drawn independently of every feature, the only
+regression target was a deterministic identity. Modeling could therefore be verified
+against neither.
+- [x] `scripts/datagen/` — 12 scenarios emitting `<name>.csv` + machine-checkable
+      `<name>.truth.json`; CLI with `--list` / `--tier` / `--verify`; corpus generated,
+      not committed (same seed ⇒ byte-identical CSVs)
+- [x] **Modeling** (`churn`, `house_prices`, `segments`) — known coefficients/k, honest
+      accuracy floors measured the way `train_model` would fit them
+- [x] **Analysis** (`correlations`, `ab_test`, `timeseries`) — planted ρ, a real effect
+      *and* a null control, known trend/seasonality/anomalies
+- [x] **6 judgement traps** (`leakage`, `imbalanced`, `no_signal`, `simpson`,
+      `multicollinear`, `wide`) — where the mechanically-correct answer is the wrong one;
+      the first tests of whether the agent's *conclusions* are honest, not just its plumbing
+- [x] Self-verifying answer keys (facts record how they were measured and replay against
+      the CSV) + `tests/test_datagen.py` (88) asserting determinism, replay, tamper
+      detection, and each scenario's design intent
+- [ ] **Phase B** — checksum-pinned real-data fetcher (UCI Bank Marketing 45k `;`-delimited;
+      UCI Online Retail 541k `.xlsx`; seaborn-data) for realism/scale/encoding coverage.
+      ⚠️ Rename + perturb memorized datasets (titanic/iris/tips) or the agent can answer
+      without loading them.
+- [ ] **Phase C** — capability sweep harness consuming `prompts[].checks`; tiered
+      smoke/full, `RUN_LLM_EVALS`-gated.
 
 ## M6 — Reporting, memory, reflection, polish  *(phase this — it's ~3 milestones in a coat)*
 - [ ] Full analysis report + reproducible notebook export

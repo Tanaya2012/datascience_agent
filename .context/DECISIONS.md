@@ -620,6 +620,112 @@ manifest means "dataset versions"); uuid-suffixing every report key like `plot_d
 the readable, ordered `__vN__` scheme and the ability to say "the second profile"); leaving the
 non-modeling tools alone (same bug, one-line fix, and the before/after comparison loss is real).
 
+### 2026-08-06 — D26: planted-truth test corpus (`scripts/datagen/`) — Phase A
+**Context:** "We don't have enough data to test the agent." An audit of the corpus
+confirmed a sharper problem than volume: the repo had **one** generator
+(`generate_dummy_data.py`, 321 rows) plus three toy eval fixtures (12/4/4 rows), and
+**no dataset anywhere with planted, learnable signal**. Measured on the only dataset
+present: `Returned?` — the sole classification target — is drawn by `rng.choice(...)`
+independently of every feature (P(returned) spans 0.23–0.43 across categories, i.e.
+sampling noise), and `Revenue` — the sole regression target — is a near-deterministic
+identity (r = 0.9975 with `qty × price × (1−discount)` after trimming the outliers that
+are injected *after* revenue is computed, which is why the untrimmed correlation reads
+−0.02). So a model can learn **nothing** from one and **everything** from the other, and
+neither outcome tells you whether the modeling pipeline is correct. This is the same
+defect STATUS already recorded twice from M5a/M5b probes (an all-zero-target fixture; a
+parity target scoring 0.0) — those were symptoms, this is the cause.
+**Decision:** Build `scripts/datagen/` — scenario generators that emit a CSV **plus a
+machine-checkable `<name>.truth.json` answer key**. The answer key is the whole point:
+it converts data into assertions. Twelve scenarios in three groups —
+*modeling* (`churn`, `house_prices`, `segments`), *analysis* (`correlations`, `ab_test`,
+`timeseries`), and six **traps** (`leakage`, `imbalanced`, `no_signal`, `simpson`,
+`multicollinear`, `wide`). The traps are the novel part: they test **judgement, not
+arithmetic** — in each, the mechanically-correct answer is the wrong one (celebrate a
+0.97 accuracy that comes from a leaked column; report 99% accuracy where a constant
+predictor scores 99%; conclude "no relationship" from a Pearson r of 0.01 that hides a
+U-shape; conclude studying lowers scores when the correlation reverses within every
+department). Nothing in the suite tested that before: the fuzzer (D18) covers tool-level
+robustness and the live bug bash (D19) covers routing, but neither asks whether the agent
+draws a *correct conclusion*.
+**Key design choices:**
+- **Facts are self-verifying.** Each fact records not just the expected value but *how it
+  was measured* (`measure.fn` + `args`), so `--verify` replays every one against the
+  written CSV. A generator that drifts, or a hand-edited CSV, breaks the key loudly
+  instead of silently blessing wrong data. `tests/test_datagen.py` asserts this in both
+  directions, including that a deliberately corrupted frame **is** reported — a check
+  that cannot fail is not a check.
+- **Two distinct tolerances.** `Fact.tolerance` = how close the *agent's* answer must be
+  (semantic); `REPLAY_EPS` = how far a *recomputation* may drift (float round-trip only).
+  Conflating them would either make replay useless or make agent grading absurdly strict.
+- **`measured()` over `asserted()`.** Facts derived from the generated data are
+  replayable; `asserted` is reserved for design intent that cannot be recovered from the
+  CSV (which columns were planted as signal). Bounds take a `margin` so a recorded floor
+  stays honest under estimator jitter.
+- **Model-fitting measurers mirror `train_model`** (numeric features only, `SimpleImputer`
+  in a `Pipeline`), so a recorded accuracy floor is one the agent can actually reach —
+  an oracle fit differently would grade the agent against a model it cannot build.
+- **Noise columns are redrawn until provably null.** `churn`'s region/plan are resampled
+  until their chi-square p vs the target exceeds 0.25, and `ab_test`'s bounce control
+  until p > 0.5, so "this factor has no effect" is a fact the fixture *supports* rather
+  than merely intends. An unlucky draw would otherwise make a true negative look wrong.
+- **Corpus is generated, not committed** (`data/` is already gitignored); generators +
+  seed are the source of truth, and identical seeds reproduce byte-identical CSVs.
+- **Tiers** (`smoke` = 6 scenarios / `full` = 12) so a future sweep has a cheap default.
+**Deliberate departure:** these use numpy/pandas/scipy/sklearn rather than
+`generate_dummy_data.py`'s stdlib-only rule — planting known statistical structure needs
+numpy and an honest accuracy floor needs sklearn. All four are already in
+`requirements.txt`, and these are dev-time scripts, not agent code. The two generators
+are **complementary**: the old one owns *mess* (cleaning paths), the new one owns
+*structure* (correctness).
+**Verified:** 12/12 answer keys replay clean; `tests/test_datagen.py` (88) green; full
+suite **461 passed, 6 skipped** (373 pre-existing + 88 new). Two facts were tuned after
+inspecting the first generation — `imbalanced`'s signal was strengthened (AUC 0.55 → 0.79,
+via a bisection-calibrated intercept holding the positive rate at 1%) because a weak
+signal collapses the intended lesson ("accuracy hides real skill") into the duller "there
+is nothing here"; and `timeseries`'s trend tolerance was widened to span both defensible
+readings (~0.46/day fitting one line through the level shift, ~0.35/day modelling it
+separately) so the *better* analysis is not marked wrong.
+**Byproduct:** this delivers the **M5d churn fixture** the roadmap blocks on, built to the
+exact recipe STATUS recorded (0.49 positive rate, 0.87 CV accuracy, `tenure_months` top
+importance).
+**Known limitation (deliberate):** the corpus is clean-by-construction apart from
+`churn`'s 4% missingness, which is confined to a noise column so no planted fact moves.
+It tests *correctness*, not *robustness to mess* — that is `generate_dummy_data.py`'s job,
+and real-world messiness (encodings, multi-row headers, sentinel values) needs Phase B.
+**Rejected:** LLM-generated datasets (uncontrollable distributions, non-reproducible,
+burns quota — and statistics computed from them have no ground truth); SDV (heavy
+dependency to synthesize what we can plant deterministically); Faker (adds a dep for
+realistic *names*, which is not the gap); extending `generate_dummy_data.py` in place
+(its stdlib-only purity and mess focus are worth keeping distinct); committing the CSVs
+(bulk data in git for something a seed reproduces exactly).
+**Not built (user scoped to Phase A):** Phase B — a checksum-pinned real-data fetcher
+(UCI Bank Marketing 45k semicolon-delimited, UCI Online Retail 541k `.xlsx`,
+seaborn-data; both reachable, verified 200). **Trap noted for Phase B:** the LLM has
+memorized titanic, iris and tips, so it can answer questions about them *without loading
+the file* — a passing test that proves nothing. Mitigation: rename columns and perturb
+values on ingest so answers can only come from computation.
+**Phase C design (discussed, not built) — the capability sweep harness.** It is a *third*
+regime alongside the two live harnesses already here: `live_bug_bash.py` (D19) asks "did
+state stay coherent?", the ADK evalsets (D11/D21) ask "did the reply resemble a reference
+answer?", and Phase C asks **"was the answer right?"**. Loop: generate → load the CSV →
+for each `prompts[].ask`, drive the real orchestrator → grade every fact id in that
+prompt's `checks` → per-capability scorecard. Each prompt runs **N times reporting a
+frequency**, not a single pass/fail (the LLM is nondeterministic — the D19/D21 rule).
+**The key design choice is that grading has two channels, and the split is what keeps the
+suite from being flaky:**
+- **From state (preferred).** Most facts need no prose parsing at all —
+  `churn.cv_accuracy` is in `AgentSessionState.models[...].cv_metrics`, EDA/stat results
+  are in their report artifacts, and `transformation_logs` record what was actually done.
+  Same state-mediated insight as D13/D22/D24, and far more robust than regexing chat text.
+- **From prose (only where unavoidable).** Judgement facts (`leak.flagged`,
+  `simpson.reversal_caught`) exist *only* in what the agent said: `must_mention` keywords
+  first, escalating to an LLM judge where keywords prove brittle.
+Then `Fact.kind` picks the comparison: `scalar` → within `tolerance`; `lower_bound`/
+`upper_bound` → one-sided; `exact`/`set` → structural. Tiering: `--tier smoke` (6
+scenarios) as the default, full 12 on demand, `RUN_LLM_EVALS`-gated so CI stays
+quota-free. **Build the state channel first** — prose extraction is the fragile part, and
+over-relying on it produces exactly the flaky suite D21 refused to ship.
+
 ### 2026-07-11 — D21: M4.5 evalsets — error-recovery + multi-turn (closes M4.5)
 **Context:** M4.5's third task — promote bug-bash findings into regression evals. Two new
 ADK evalsets wired into `tests/test_eval.py` (structural parse always runs;
