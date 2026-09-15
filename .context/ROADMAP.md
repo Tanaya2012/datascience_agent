@@ -146,7 +146,12 @@ adversarial pass before modeling chains more mutations together.
       re-scored (not cross-validated) by `evaluate_model`. `tests/test_modeling.py` (7 → 15).
       **367 passed, 6 skipped.** Live-verified: load → train → cross-validate through the real
       orchestrator, registry carries test + `cv_*` metrics, importances ranked correctly.
+      *(Corrected 2026-09-15 by **D27** (audit F1): "the most recent" was resolved by dict
+      position, so re-training under an existing name made `evaluate_model()` pick a different
+      model. Now `max(..., key=created_at)`; re-registering a name warns.)*
 - [ ] **M5c** — `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite).
+      *(Reuse D27's by-`created_at` registry selection for `predict_model`'s default model —
+      dict-position selection there means wrong predictions written into the dataset.)*
 - [ ] **M5d** — cross-specialist chain + "predict churn" eval + **kernel eviction**
       (idle-TTL in the `run_python` registry) + docs; close M5.
       *(The learnable-signal fixture this blocked on is **done** — D26's `churn` scenario:

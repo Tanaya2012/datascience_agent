@@ -334,3 +334,46 @@ async def test_evaluate_error_paths(mock_ctx):
 
     r = await evaluate_model(tool_context=mock_ctx)
     assert r["success"] is False and "missing feature column" in r["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_default_model_is_newest_by_training_time_not_dict_position(mock_ctx):
+    """Re-training under an existing name keeps that name's original dict slot, so the
+    default 'most recently trained' pick must go by created_at (audit F1)."""
+    df = _clf_df(60)
+    df["value"] = 2 * df["x1"] - df["x2"]
+    await _seed(mock_ctx, df)
+
+    await train_model(task="classification", target="label", estimator="random_forest",
+                      model_name="champion", tool_context=mock_ctx)
+    await train_model(task="regression", target="value", tool_context=mock_ctx)
+    # Champion is retrained last, but stays first in the registry dict.
+    await train_model(task="classification", target="label", estimator="logistic_regression",
+                      model_name="champion", tool_context=mock_ctx)
+
+    state = get_session_state(mock_ctx)
+    assert list(state.models)[-1] != "champion"          # guards the premise
+
+    res = await evaluate_model(cv=3, tool_context=mock_ctx)
+    assert res["success"] is True
+    assert res["model_name"] == "champion"
+    assert res["report"]["task"] == "classification"
+
+
+@pytest.mark.asyncio
+async def test_retraining_over_an_existing_name_warns(mock_ctx):
+    await _seed(mock_ctx, _clf_df(60))
+    first = await train_model(task="classification", target="label",
+                              estimator="random_forest", model_name="champion",
+                              tool_context=mock_ctx)
+    assert not any("Replaced the existing model" in w for w in first["warnings"])
+
+    second = await train_model(task="classification", target="label",
+                               estimator="logistic_regression", model_name="champion",
+                               tool_context=mock_ctx)
+    assert any("Replaced the existing model 'champion'" in w and "random_forest" in w
+               for w in second["warnings"])
+    # The warning is also captured in the audit trail, not just the tool result.
+    state = get_session_state(mock_ctx)
+    assert any("Replaced the existing model" in w
+               for w in state.transformation_logs[-1].warnings)

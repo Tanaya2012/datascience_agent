@@ -29,7 +29,8 @@ Your tools:
   `linear_regression` / `random_forest_regressor` / `gradient_boosting_regressor` for
   regression; `kmeans` for clustering — defaults to random forest, or kmeans),
   `features` (defaults to all numeric columns except the target), `test_size`,
-  `n_clusters` (clustering, default 3), and `model_name`. Returns test metrics
+  `n_clusters` (clustering, default 3), and `model_name` — re-using a name **replaces**
+  that model in the registry, so give a distinct `model_name` to keep both. Returns test metrics
   (accuracy/f1/roc_auc, r2/rmse/mae, or silhouette/inertia for clustering) and
   registers the fitted model in the session so later steps can reference it by name.
   The dataset is not changed. Encode categorical features first (Feature-Engineering) —

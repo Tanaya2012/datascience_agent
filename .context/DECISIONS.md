@@ -753,3 +753,33 @@ evalsets passed** (2/2, ROUGE ≥ 0.3, gemini-2.5-pro, 45s); full offline suite 
 **Rejected:** encoding the intermittent findings as evals (flaky); tool-trajectory gating
 (brittle exact-arg matching, D11); a bespoke non-ADK eval runner (the ADK harness +
 `live_bug_bash.py` already cover the two regimes).
+
+### 2026-09-15 — D27: audit F1 — "most recently trained" model was picked by dict position
+**Context:** first finding actioned from the 2026-09-03 health audit at `1ee61cf`
+([report](https://claude.ai/code/artifact/edfd211f-26ca-44d1-89e8-434875469f20)). Like D25,
+found by audit rather than a failing test.
+**The bug:** `evaluate_model(model_name=None)` resolved its documented default — "the most
+recently trained model" — as `list(state.models.values())[-1]`. Re-assigning an existing
+dict key keeps that key's **original insertion slot**, and `train_model` registers with
+`state.models[name] = record` where `name` defaults to the deterministic
+`"<estimator>_<target>"`. So re-training a model (same name, or an explicit `model_name`
+the user is iterating on) leaves it wherever it first landed, and `[-1]` returns whatever
+name was *first registered* last. Reproduced: train `champion` (rf/classification) → train
+`random_forest_regressor_value` (regression) → re-train `champion` (logreg) →
+`evaluate_model()` cross-validates and reports **the regression model**. It fails silently:
+the report is internally valid, and nothing in `ModelResult` said which model the user meant.
+**Not D25.** Same symptom family ("wrong model silently used"), different root cause — D25
+was artifact-key collision in `next_version`; this is registry *selection*. D25's own note
+("the M5b tests missed it because they only ever evaluated the most recently trained model")
+describes exactly the test habit that also hid F1.
+**Decision:** select by training time — `max(state.models.values(), key=lambda r: r.created_at)`.
+`ModelRecord.created_at` already existed (M5a) and survives the session-state JSON round-trip
+as a real `datetime`, so this holds across a reload. **Also** made registry replacement
+visible, which is what let F1 hide: `train_model` now appends a warning when it overwrites an
+existing name (carried in both `ModelResult.warnings` and the `TransformationLog`), and the
+Modeling specialist's `train_model` description says re-using a name replaces that model.
+**Verified:** 2 regression tests in `tests/test_modeling.py` (default-pick-by-time,
+overwrite-warns), both confirmed **failing against the pre-fix code** and passing after;
+full suite **463 passed, 6 skipped**.
+**Forward note:** M5c's `predict_model` will share this default-selection path — there the
+same bug means wrong predictions appended to the dataset, not just a misleading report.

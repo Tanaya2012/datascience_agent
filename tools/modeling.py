@@ -233,6 +233,11 @@ async def train_model(
         n_train=report_obj.n_train, n_test=report_obj.n_test, train_dataset_key=key,
         created_at=datetime.now(timezone.utc),
     )
+    prior = state.models.get(name)
+    if prior is not None:
+        warnings.append(f"Replaced the existing model '{name}' ({prior.estimator.value}, "
+                        f"{prior.task.value}) in the registry — it is no longer reachable by "
+                        f"name. Pass model_name to keep both.")
     state.models[name] = record
 
     rows, n_cols = df.shape
@@ -298,7 +303,9 @@ async def evaluate_model(
             return _err(f"No model named '{model_name}' in the registry. "
                         f"Available: {list(state.models)}.", EVAL_STEP_NAME)
     else:
-        record = list(state.models.values())[-1]        # most recently trained
+        # By training time, not dict position: re-training under an existing name keeps
+        # that name's original insertion slot, so [-1] is the last name *first* registered.
+        record = max(state.models.values(), key=lambda r: r.created_at)
 
     key = resolve_dataset_key(dataset_artifact_key, state)
     if not key:

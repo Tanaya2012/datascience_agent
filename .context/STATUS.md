@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-08-06
+**Last updated:** 2026-09-15
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -13,14 +13,21 @@ fuzzer clean at 800 seeds *with modeling coverage added*. Next: **M5c** — `pre
 `auto_select_model` (AutoML-lite). M4.5 closed (D17–D21).
 **Also landed (out-of-milestone): planted-truth test corpus (D26)** — `scripts/datagen/`,
 12 scenarios emitting CSV + machine-checkable `.truth.json` answer keys, incl. 6 judgement
-traps. **461 passed, 6 skipped** (373 + 88 new). Delivers the M5d churn fixture.
+traps. Delivers the M5d churn fixture.
+**Health audit (2026-09-03)** at commit `1ee61cf` produced 20 ranked findings
+([report artifact](https://claude.ai/code/artifact/edfd211f-26ca-44d1-89e8-434875469f20));
+we are now working through them in order. **F1 fixed (D27)** — `evaluate_model`'s default
+"most recent model" picked by dict position, not training time. **463 passed, 6 skipped.**
+Remaining, unverified: F2 (artifacts lost on restart under persistent sessions), F3
+(`run_python` blocks the event loop), F4 (kernels share a scratch dir), plus deps/docs/CI
+items.
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **461 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **463 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
   (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12
