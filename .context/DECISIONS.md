@@ -783,3 +783,36 @@ overwrite-warns), both confirmed **failing against the pre-fix code** and passin
 full suite **463 passed, 6 skipped**.
 **Forward note:** M5c's `predict_model` will share this default-selection path — there the
 same bug means wrong predictions appended to the dataset, not just a misleading report.
+
+### 2026-09-15 — D28: audit F2 — persistent sessions were paired with in-memory artifacts
+**Context:** second finding from the 2026-09-03 health audit. M2c (D11) made *sessions*
+resumable and stopped there; artifacts were never brought along.
+**The bug:** `AgentSessionState` deliberately stores artifact **keys, not bytes** (the
+founding "no DataFrames in state" rule). `scripts/chat.py` paired
+`make_session_service(persistent=True)` with `InMemoryArtifactService()`, and `adk web`'s
+default artifact service is in-memory too. So a restart faithfully restored
+`current_dataset_key`, `models`, and the whole manifest — pointing at bytes that died with
+the process. Every subsequent tool call failed with `Artifact '<key>' not found in ADK
+service or local filesystem`. The `artifacts/` filesystem fallback does **not** save it:
+`save_artifact` returns early once the ADK service accepts the bytes, so with a working
+in-memory service nothing is ever written to disk. Verified: a fresh `InMemoryArtifactService`
+reads back `None` where a fresh `FileArtifactService` on the same root returns the bytes.
+**Decision:** ADK 2.1.0 ships `FileArtifactService`, so no custom service is needed. Added
+`configs/session.make_artifact_service(persistent=…, root_dir=…)` mirroring
+`make_session_service`, defaulting to `FileArtifactService` rooted at the project's
+`artifacts/`; `scripts/chat.py` now uses it. `DEFAULT_ARTIFACTS_DIR` is **absolute**
+(`_PROJECT_DIR / "artifacts"`) because the scripts are documented to run from the parent
+directory — a cwd-relative root would scatter artifacts into `/Users/tushar/interests/`.
+Docs (README, CAPABILITIES, STATUS, ARCHITECTURE) now give `--artifact_service_uri
+"file://…"` alongside `--session_service_uri`, since passing one without the other is the
+trap.
+**Left alone (deliberately):** the smoke tests and `live_bug_bash.py` keep in-memory
+artifacts — they also use in-memory *sessions*, so they are consistently ephemeral,
+single-process, and have no restart to survive. F2 was only ever `chat.py` + `adk web`.
+**Verified:** 4 tests in `tests/test_session_persistence.py` (service kinds, absolute root,
+save → fresh-service → read across a simulated restart with the in-memory contrast, and a
+guard that `chat.py` pairs the two). Full suite **467 passed, 6 skipped**.
+**Adjacent, NOT fixed:** `artifact_utils.ARTIFACTS_DIR = Path("artifacts")` is still
+cwd-relative, so the *fallback* path still moves with the caller's cwd. Latent today (the
+fallback only runs when the ADK service fails, and tests run from the project dir), but it
+is the same class of bug — logged for the audit pass, not fixed here.

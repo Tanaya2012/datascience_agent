@@ -22,19 +22,22 @@ async def main() -> None:
     load_dotenv(pkg_dir / ".env")
 
     from google.adk.runners import Runner
-    from google.adk.artifacts import InMemoryArtifactService
     from google.genai import types
 
     from datascience_agent.agent import root_agent, MODEL
-    from datascience_agent.configs.session import ensure_session, make_session_service
+    from datascience_agent.configs.session import (
+        ensure_session, make_artifact_service, make_session_service,
+    )
     from datascience_agent.tools.code_exec.run_python import reset_kernels
 
     app, uid, sid = "chat", "user", "session"
-    # Persistent session store → re-running resumes the same session's state.
+    # Persistent session store → re-running resumes the same session's state. The artifact
+    # store must be persistent too: resumed state holds artifact *keys*, so an in-memory
+    # store would resume pointing at datasets that no longer exist (D28).
     session_service = make_session_service(persistent=True)
     await ensure_session(session_service, app, uid, sid)
     runner = Runner(agent=root_agent, app_name=app, session_service=session_service,
-                    artifact_service=InMemoryArtifactService())
+                    artifact_service=make_artifact_service(persistent=True))
 
     print(f"data-science agent ready (model={MODEL}). Resuming session '{sid}'. "
           f"Type 'exit' to quit.\n")

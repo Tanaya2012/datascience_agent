@@ -44,9 +44,12 @@ conda run -n dsagent adk web datascience_agent      # browser UI
 ```
 
 Optional extras:
-- **Resumable sessions:** append
+- **Resumable sessions:** append both
   `--session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db"`
-  to `adk web`/`adk run` (note the async-SQLite driver). The `chat.py` REPL persists by default.
+  and `--artifact_service_uri "file://$(pwd)/datascience_agent/artifacts"`
+  to `adk web`/`adk run` (note the async-SQLite driver). Persisting the session without the
+  artifact store resumes state that points at datasets the in-memory store already dropped.
+  The `chat.py` REPL persists both by default.
 - **Kaggle datasets:** install `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`,
   ensure `~/.local/bin` is on PATH) and add `~/.kaggle/kaggle.json`; the Data Steward then
   exposes Kaggle search/download. Without these it simply omits those tools.

@@ -109,6 +109,9 @@ When to use MCP vs. an in-process tool:
   built via `configs/session.py`; requires the async driver
   (`sqlite+aiosqlite://` + `greenlet`). Wire into `adk web/run` with
   `--session_service_uri`; scripts use the helper directly. (M2c, D11.)
+  **Paired with `FileArtifactService`** (`make_artifact_service`, `artifacts/`, wired via
+  `--artifact_service_uri file://…`): session state carries artifact *keys*, so session
+  persistence without artifact persistence resumes into dangling keys. (D28.)
 - **Eval harness** — ADK `AgentEvaluator` over `evals/*.evalset.json` (+
   `test_config.json`), gated behind `RUN_LLM_EVALS=1`; gates on `response_match`
   (ROUGE), not brittle tool-arg trajectory matching. (M2c, D11.)

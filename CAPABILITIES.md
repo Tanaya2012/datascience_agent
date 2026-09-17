@@ -42,10 +42,13 @@ conda run -n dsagent adk web datascience_agent
 Open the printed URL (usually http://localhost:8000), pick `datascience_agent`, chat.
 
 **Resumable sessions (optional):** add a persistent session store so a restart
-resumes state (note the async-SQLite driver in the URI):
+resumes state (note the async-SQLite driver in the URI). Pass **both** URIs — resumed
+state holds artifact *keys*, so a persistent session with the default in-memory artifact
+store comes back pointing at datasets that no longer exist:
 ```
 conda run -n dsagent adk web datascience_agent \
-  --session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db"
+  --session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db" \
+  --artifact_service_uri "file://$(pwd)/datascience_agent/artifacts"
 ```
 The `scripts/chat.py` REPL uses a persistent store by default (resumes session `session`).
 
@@ -100,8 +103,8 @@ try are in each key's `prompts` list. Details: `scripts/datagen/README.md`.
   the UI (not just a path) via `ingest_uploaded_file`.
 - **Kaggle** (with credentials): search and download datasets/competitions via the
   `kaggle` library → local files under `artifacts/kaggle/<slug>/`.
-- **Resumable sessions**: with a `--session_service_uri` SQLite store, restarts
-  resume prior state.
+- **Resumable sessions**: with a `--session_service_uri` SQLite store plus a matching
+  `--artifact_service_uri file://…`, restarts resume prior state *and* its datasets.
 
 **Deterministic, auditable tools**
 - **Load** local CSV / Excel / Parquet.

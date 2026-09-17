@@ -17,17 +17,19 @@ traps. Delivers the M5d churn fixture.
 **Health audit (2026-09-03)** at commit `1ee61cf` produced 20 ranked findings
 ([report artifact](https://claude.ai/code/artifact/edfd211f-26ca-44d1-89e8-434875469f20));
 we are now working through them in order. **F1 fixed (D27)** — `evaluate_model`'s default
-"most recent model" picked by dict position, not training time. **463 passed, 6 skipped.**
-Remaining, unverified: F2 (artifacts lost on restart under persistent sessions), F3
-(`run_python` blocks the event loop), F4 (kernels share a scratch dir), plus deps/docs/CI
-items.
+"most recent model" picked by dict position, not training time. **F2 fixed (D28)** —
+persistent sessions were paired with an in-memory artifact store, so a restart resumed into
+dangling artifact keys; `chat.py` + the documented `adk web` invocation now use
+`FileArtifactService`. **467 passed, 6 skipped.**
+Remaining, unverified: F3 (`run_python` blocks the event loop), F4 (kernels share a scratch
+dir), plus deps/docs/CI items.
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **463 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **467 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
   (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12
@@ -40,7 +42,9 @@ Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code
 - LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
   `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (routing evalset).
 - **Persistent sessions:** `adk web/run … --session_service_uri
-  "sqlite+aiosqlite:///<project>/sessions/sessions.db"` (async driver required).
+  "sqlite+aiosqlite:///<project>/sessions/sessions.db"` (async driver required)
+  **plus `--artifact_service_uri "file://<project>/artifacts"`** — persist both or the
+  resumed session points at artifacts the in-memory store dropped (D28).
 - LLM smoke tests (need API key; use real quota), run from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.smoke_test` (load+profile),
   `... python -m datascience_agent.scripts.smoke_test_m1` (run_python+commit),

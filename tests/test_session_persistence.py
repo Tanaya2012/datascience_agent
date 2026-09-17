@@ -58,3 +58,58 @@ async def test_pipeline_state_survives_restart(tmp_path):
     restored = await svc2.get_session(app_name=app, user_id=uid, session_id=sid)
     assert restored is not None
     assert restored.state["pipeline_state"] == payload
+
+
+def test_make_artifact_service_kinds(tmp_path):
+    from google.adk.artifacts import FileArtifactService, InMemoryArtifactService
+
+    assert isinstance(session_cfg.make_artifact_service(persistent=False),
+                      InMemoryArtifactService)
+    svc = session_cfg.make_artifact_service(root_dir=tmp_path / "arts")
+    assert isinstance(svc, FileArtifactService)
+    assert (tmp_path / "arts").exists()
+
+
+def test_default_artifacts_dir_is_absolute():
+    # Scripts are documented to run from the *parent* dir; a cwd-relative root would
+    # scatter artifacts outside the project.
+    assert session_cfg.DEFAULT_ARTIFACTS_DIR.is_absolute()
+    assert session_cfg.DEFAULT_ARTIFACTS_DIR.name == "artifacts"
+
+
+@pytest.mark.asyncio
+async def test_artifacts_survive_restart_alongside_session_state(tmp_path):
+    """A persistent session resumes artifact *keys*, so the artifact store must be
+    persistent too — otherwise the resumed state points at bytes that are gone (F2/D28)."""
+    import google.genai.types as genai_types
+
+    app, uid, sid = "dsagent", "user", "s1"
+    key = "dataset_loader__v1__dataset"
+    part = genai_types.Part.from_bytes(data=b"PARQUET", mime_type="application/octet-stream")
+
+    # First "process": persistent artifact store under a temp root.
+    svc1 = session_cfg.make_artifact_service(root_dir=tmp_path / "arts")
+    await svc1.save_artifact(app_name=app, user_id=uid, session_id=sid,
+                             filename=key, artifact=part)
+
+    # Second "process": fresh service, same root → the bytes are still there.
+    svc2 = session_cfg.make_artifact_service(root_dir=tmp_path / "arts")
+    got = await svc2.load_artifact(app_name=app, user_id=uid, session_id=sid, filename=key)
+    assert got is not None and got.inline_data.data == b"PARQUET"
+
+    # Contrast: the in-memory store loses them, which is the bug F2 described.
+    mem1 = session_cfg.make_artifact_service(persistent=False)
+    await mem1.save_artifact(app_name=app, user_id=uid, session_id=sid,
+                             filename=key, artifact=part)
+    mem2 = session_cfg.make_artifact_service(persistent=False)
+    assert await mem2.load_artifact(app_name=app, user_id=uid, session_id=sid,
+                                    filename=key) is None
+
+
+def test_chat_repl_pairs_persistent_session_with_persistent_artifacts():
+    """Guards the specific mispairing F2 found in scripts/chat.py."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parent.parent / "scripts" / "chat.py").read_text()
+    assert "make_artifact_service(persistent=True)" in src
+    assert "InMemoryArtifactService" not in src
