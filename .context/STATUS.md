@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-09-15
+**Last updated:** 2026-09-17
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -20,16 +20,17 @@ we are now working through them in order. **F1 fixed (D27)** — `evaluate_model
 "most recent model" picked by dict position, not training time. **F2 fixed (D28)** —
 persistent sessions were paired with an in-memory artifact store, so a restart resumed into
 dangling artifact keys; `chat.py` + the documented `adk web` invocation now use
-`FileArtifactService`. **467 passed, 6 skipped.**
-Remaining, unverified: F3 (`run_python` blocks the event loop), F4 (kernels share a scratch
-dir), plus deps/docs/CI items.
+`FileArtifactService`. **F3 fixed (D29)** — `run_python` called the sync executor from an
+async tool, freezing the event loop (and so every other session under `adk web`) for the
+whole call; `CodeExecutor` gained an async facade. **471 passed, 6 skipped.**
+Remaining, unverified: F4 (kernels share a scratch dir), plus deps/docs/CI items.
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **467 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **471 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
   (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12

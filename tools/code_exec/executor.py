@@ -14,6 +14,7 @@ survive across `execute` calls within a session.
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import os
 import queue
@@ -67,24 +68,55 @@ class CodeExecutor(ABC):
     @abstractmethod
     def shutdown(self) -> None: ...
 
+    # --- async facade -------------------------------------------------------
+    #
+    # `execute` blocks: it reads a queue under a lock until the worker answers or
+    # the timeout expires. `run_python` is an `async def` tool, so calling the sync
+    # form from it freezes the whole event loop for the duration — under `adk web`
+    # that stalls every other session and HTTP request, not just the caller (D29).
+    # **Async callers must use these.** A natively-async backend (an L4 container)
+    # overrides `aexecute` alone; every helper below rides on it.
+
+    async def aexecute(self, code: str, timeout: float | None = None,
+                       plot_dir: str | None = None) -> ExecResult:
+        """`execute` off the event loop, in a worker thread."""
+        return await asyncio.to_thread(self.execute, code, timeout, plot_dir)
+
     # --- helpers built on execute() (shared across backends) ----------------
+    #
+    # Each helper comes in a sync and an `a`-prefixed async form. Both build their
+    # source from the same `_src` builder and parse with the same `_parse` helper,
+    # so the two forms cannot drift apart.
 
-    def hydrate_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
-        """Load a parquet file into `var` inside the kernel."""
-        return self.execute(
-            f"import pandas as pd\n{var} = pd.read_parquet({parquet_path!r})\ntuple({var}.shape)"
-        )
+    @staticmethod
+    def _hydrate_src(parquet_path: str, var: str) -> str:
+        return (f"import pandas as pd\n{var} = pd.read_parquet({parquet_path!r})\n"
+                f"tuple({var}.shape)")
 
-    def snapshot_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
-        """Write `var` from the kernel to a parquet file."""
-        return self.execute(f"{var}.to_parquet({parquet_path!r}, index=False)")
+    @staticmethod
+    def _snapshot_src(parquet_path: str, var: str) -> str:
+        return f"{var}.to_parquet({parquet_path!r}, index=False)"
 
-    def var_exists(self, var: str = "df") -> bool:
-        res = self.execute(f"{var!r} in globals()")
+    @staticmethod
+    def _var_exists_src(var: str) -> str:
+        return f"{var!r} in globals()"
+
+    @staticmethod
+    def _shape_src(var: str) -> str:
+        return f"tuple({var}.shape)"
+
+    _PACKAGES_SRC = (
+        "import importlib.metadata as _m, json as _j\n"
+        "print(_j.dumps(sorted({d.metadata['Name'] for d in _m.distributions() "
+        "if d.metadata['Name']})))"
+    )
+
+    @staticmethod
+    def _parse_var_exists(res: ExecResult) -> bool:
         return res.ok and res.result_repr == "True"
 
-    def df_shape(self, var: str = "df") -> tuple[int, int] | None:
-        res = self.execute(f"tuple({var}.shape)")
+    @staticmethod
+    def _parse_shape(res: ExecResult) -> tuple[int, int] | None:
         if not res.ok or not res.result_repr:
             return None
         try:
@@ -93,19 +125,46 @@ class CodeExecutor(ABC):
         except Exception:
             return None
 
-    def installed_packages(self) -> list[str]:
-        code = (
-            "import importlib.metadata as _m, json as _j\n"
-            "print(_j.dumps(sorted({d.metadata['Name'] for d in _m.distributions() "
-            "if d.metadata['Name']})))"
-        )
-        res = self.execute(code)
+    @staticmethod
+    def _parse_packages(res: ExecResult) -> list[str]:
         if not res.ok or not res.stdout.strip():
             return []
         try:
             return list(json.loads(res.stdout.strip().splitlines()[-1]))
         except Exception:
             return []
+
+    def hydrate_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
+        """Load a parquet file into `var` inside the kernel."""
+        return self.execute(self._hydrate_src(parquet_path, var))
+
+    async def ahydrate_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
+        return await self.aexecute(self._hydrate_src(parquet_path, var))
+
+    def snapshot_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
+        """Write `var` from the kernel to a parquet file."""
+        return self.execute(self._snapshot_src(parquet_path, var))
+
+    async def asnapshot_dataframe(self, parquet_path: str, var: str = "df") -> ExecResult:
+        return await self.aexecute(self._snapshot_src(parquet_path, var))
+
+    def var_exists(self, var: str = "df") -> bool:
+        return self._parse_var_exists(self.execute(self._var_exists_src(var)))
+
+    async def avar_exists(self, var: str = "df") -> bool:
+        return self._parse_var_exists(await self.aexecute(self._var_exists_src(var)))
+
+    def df_shape(self, var: str = "df") -> tuple[int, int] | None:
+        return self._parse_shape(self.execute(self._shape_src(var)))
+
+    async def adf_shape(self, var: str = "df") -> tuple[int, int] | None:
+        return self._parse_shape(await self.aexecute(self._shape_src(var)))
+
+    def installed_packages(self) -> list[str]:
+        return self._parse_packages(self.execute(self._PACKAGES_SRC))
+
+    async def ainstalled_packages(self) -> list[str]:
+        return self._parse_packages(await self.aexecute(self._PACKAGES_SRC))
 
 
 class SubprocessKernelExecutor(CodeExecutor):

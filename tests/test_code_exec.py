@@ -183,3 +183,97 @@ class TestRunPythonTool:
         assert r["success"]
         assert r["committed"] is False
         assert get_session_state(mock_ctx).current_dataset_key == before
+
+
+# ---------------------------------------------------------------------------
+# Event-loop friendliness (audit F3 / D29)
+# ---------------------------------------------------------------------------
+
+def _ctx_for(session_id: str):
+    """A ToolContext stand-in reporting a distinct session id (→ its own kernel)."""
+    import types
+
+    ctx = types.SimpleNamespace(state={})
+    ctx._invocation_context = types.SimpleNamespace(
+        session=types.SimpleNamespace(id=session_id))
+
+    async def _no_adk(**_):
+        raise RuntimeError("no ADK in tests")
+
+    ctx.save_artifact = _no_adk
+    ctx.load_artifact = _no_adk
+    return ctx
+
+
+class TestEventLoopIsNotBlocked:
+    async def test_other_tasks_keep_running_during_slow_code(self, mock_ctx):
+        """The kernel call must happen off-loop: a co-tenant task has to keep ticking
+        while user code sleeps, or one session's slow cell freezes the whole server."""
+        import asyncio
+
+        await run_python("1", tool_context=mock_ctx)          # warm the kernel
+
+        ticks = 0
+        stop = asyncio.Event()
+
+        async def ticker():
+            nonlocal ticks
+            while not stop.is_set():
+                await asyncio.sleep(0.05)
+                ticks += 1
+
+        task = asyncio.create_task(ticker())
+        r = await run_python("import time; time.sleep(1.0)", tool_context=mock_ctx)
+        stop.set()
+        await task
+
+        assert r["success"]
+        # ~20 ticks if the loop is free; ~1 if it was blocked for the full second.
+        assert ticks >= 5, f"event loop was blocked — only {ticks} ticks in 1s"
+
+    async def test_separate_sessions_execute_concurrently(self):
+        """Distinct sessions own distinct kernels, so their calls must overlap.
+        (Same-session calls still serialize on the kernel lock — that is correct:
+        one kernel, one `df` namespace.)"""
+        import asyncio
+        import time
+
+        a, b = _ctx_for("sess-a"), _ctx_for("sess-b")
+        await asyncio.gather(run_python("1", tool_context=a),
+                             run_python("1", tool_context=b))   # warm both
+
+        t0 = time.monotonic()
+        await asyncio.gather(
+            run_python("import time; time.sleep(1.5)", tool_context=a),
+            run_python("import time; time.sleep(1.5)", tool_context=b),
+        )
+        elapsed = time.monotonic() - t0
+        # ~1.5s concurrent vs ~3.0s serialized.
+        assert elapsed < 2.5, f"sessions serialized ({elapsed:.2f}s) — loop likely blocked"
+
+    async def test_async_and_sync_helper_forms_agree(self, worker, tmp_path):
+        """The a*/sync pairs share their source builders, so they must not drift."""
+        src = str(tmp_path / "in.parquet")
+        worker.execute(
+            "import pandas as pd; pd.DataFrame({'a':[1,2,3]}).to_parquet(%r, index=False)" % src
+        )
+        assert (await worker.ahydrate_dataframe(src)).ok
+        assert await worker.adf_shape() == worker.df_shape() == (3, 1)
+        assert await worker.avar_exists("df") is worker.var_exists("df") is True
+        assert await worker.avar_exists("nope") is worker.var_exists("nope") is False
+        assert (await worker.aexecute("21 * 2")).result_repr == "42"
+        assert sorted(await worker.ainstalled_packages()) == sorted(worker.installed_packages())
+        out = str(tmp_path / "out.parquet")
+        assert (await worker.asnapshot_dataframe(out)).ok
+        assert os.path.exists(out)
+
+    def test_run_python_makes_no_sync_executor_calls(self):
+        """Guards the specific regression: a sync executor call inside the async tool."""
+        import re
+        from pathlib import Path
+
+        src = (Path(__file__).resolve().parent.parent
+               / "tools" / "code_exec" / "run_python.py").read_text()
+        sync_calls = re.findall(
+            r"(?<!await )kernel\.executor\.(?!shutdown)(\w+)\(", src)
+        assert not sync_calls, f"un-awaited executor calls in async tool: {sync_calls}"

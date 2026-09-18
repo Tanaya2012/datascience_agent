@@ -15,11 +15,13 @@ deterministic tools. Read-only exploration (``commit=False``) creates no version
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from google.adk.tools import ToolContext  # type: ignore[import]
@@ -128,8 +130,13 @@ async def run_python(
     warnings: list[str] = []
 
     # 1. Ensure the kernel is up.
+    #
+    # Every executor call below uses the `a`-prefixed async form: the sync ones block
+    # until the worker replies (up to the 30 s timeout each, and this function makes
+    # up to eight round trips), which would freeze the event loop and with it every
+    # other session served by the same process (D29).
     try:
-        kernel.executor.execute("None")  # triggers lazy start
+        await kernel.executor.aexecute("None")  # triggers lazy start
     except KernelStartError as exc:
         return CodeExecResult(
             success=False, step_name=STEP_NAME,
@@ -144,9 +151,8 @@ async def run_python(
         try:
             raw = await load_artifact(current_key, tool_context)
             hydrate_path = os.path.join(scratch, "hydrate.parquet")
-            with open(hydrate_path, "wb") as fh:
-                fh.write(raw)
-            hres = kernel.executor.hydrate_dataframe(hydrate_path)
+            await asyncio.to_thread(Path(hydrate_path).write_bytes, raw)
+            hres = await kernel.executor.ahydrate_dataframe(hydrate_path)
             if not hres.ok:
                 warnings.append(f"Failed to load df into kernel: {hres.error_type}")
             else:
@@ -157,12 +163,12 @@ async def run_python(
         warnings.append("No dataset loaded yet — `df` is not defined.")
 
     # 3. Capture shape before (for the audit log on commit).
-    shape_before = kernel.executor.df_shape() if kernel.loaded_key else None
+    shape_before = await kernel.executor.adf_shape() if kernel.loaded_key else None
 
     # 4. Run the user code.
     plot_dir = os.path.join(scratch, "plots", uuid.uuid4().hex[:8])
     os.makedirs(plot_dir, exist_ok=True)
-    res: ExecResult = kernel.executor.execute(code, plot_dir=plot_dir)
+    res: ExecResult = await kernel.executor.aexecute(code, plot_dir=plot_dir)
 
     # A timeout kills the kernel → its `df` is gone; force re-hydrate next call.
     if res.timed_out:
@@ -174,7 +180,7 @@ async def run_python(
     # 6. Commit the mutated df, if requested and possible.
     committed = False
     if commit and res.ok:
-        if not kernel.executor.var_exists("df"):
+        if not await kernel.executor.avar_exists("df"):
             warnings.append("commit=True but `df` is not defined — nothing committed.")
         else:
             committed = await _commit_df(
@@ -184,7 +190,7 @@ async def run_python(
     # 7. Advertise available packages once per session.
     available: list[str] = []
     if not kernel.advertised:
-        kernel.packages = kernel.executor.installed_packages()
+        kernel.packages = await kernel.executor.ainstalled_packages()
         kernel.advertised = True
         available = kernel.packages
 
@@ -235,13 +241,12 @@ async def _commit_df(
     """Snapshot the kernel's df to a new versioned artifact + TransformationLog."""
     scratch = getattr(kernel.executor, "scratch_dir", "/tmp")
     out_path = os.path.join(scratch, "commit.parquet")
-    snap = kernel.executor.snapshot_dataframe(out_path)
+    snap = await kernel.executor.asnapshot_dataframe(out_path)
     if not snap.ok:
         warnings.append(f"Commit failed while writing df: {snap.error_type}")
         return False
     try:
-        with open(out_path, "rb") as fh:
-            data = fh.read()
+        data = await asyncio.to_thread(Path(out_path).read_bytes)
     except OSError as exc:
         warnings.append(f"Commit failed reading snapshot: {exc}")
         return False
@@ -251,7 +256,7 @@ async def _commit_df(
     await save_artifact(artifact_key, data, tool_context)
 
     checksum_after = hashlib.md5(data).hexdigest()
-    shape_after = kernel.executor.df_shape() or (0, 0)
+    shape_after = await kernel.executor.adf_shape() or (0, 0)
     rows_before, cols_before = shape_before or (0, 0)
     rows_after, cols_after = shape_after
 

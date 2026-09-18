@@ -816,3 +816,41 @@ guard that `chat.py` pairs the two). Full suite **467 passed, 6 skipped**.
 cwd-relative, so the *fallback* path still moves with the caller's cwd. Latent today (the
 fallback only runs when the ADK service fails, and tests run from the project dir), but it
 is the same class of bug — logged for the audit pass, not fixed here.
+
+### 2026-09-17 — D29: audit F3 — `run_python` blocked the event loop for the whole call
+**Context:** third finding from the 2026-09-03 health audit.
+**The bug:** `SubprocessKernelExecutor.execute` is synchronous — it reads a queue under a
+`threading.Lock` until the worker answers or the timeout expires — and the `async def
+run_python` tool called it (and its helpers) directly at **eight** sites. Nothing yielded,
+so the loop froze for the full duration of every kernel round trip.
+**The audit's "up to 30 s" understated it** twice over: 30 s is the ceiling for *one* round
+trip, and a single `run_python(commit=True)` on a cold session makes up to eight (lazy
+start, hydrate, shape-before, user code, `var_exists`, snapshot, shape-after, package
+advertisement) — plus `start()`'s own 30 s handshake wait, which happens *inside* `execute`
+under the lock. The real ceiling is minutes.
+**Measured** (50 ms ticker sharing the loop, 3 s of user code): 6 ticks, longest gap
+**3.05 s**. Decisive evidence it was the loop and not lock contention: two *different*
+sessions — separate kernels, separate locks — took **4.01 s** for 2×2 s, i.e. fully
+serialized. Under `adk web` that means one user's slow cell stalls every other session and
+every HTTP request in the process.
+**Root cause worth naming:** declaring the tool `async def` is what caused this. A sync
+`def` tool would have been handed to a thread pool by the framework; `async` promises the
+loop that the function yields, and it never did.
+**Decision:** add an **async facade on `CodeExecutor`** rather than wrapping the eight call
+sites inline. `aexecute` = `asyncio.to_thread(self.execute, …)`; each helper gains an
+`a`-prefixed twin (`ahydrate_dataframe`, `asnapshot_dataframe`, `avar_exists`, `adf_shape`,
+`ainstalled_packages`) built on `aexecute`. Sync and async forms now share `_*_src` builders
+and `_parse_*` helpers so they **cannot drift**. The sync API is untouched, so the executor
+tests (correctly synchronous) needed no changes, and a future L4 container backend overrides
+`aexecute` alone to drop the thread hop entirely. The two dataset-sized file operations in
+the same function (hydrate write, commit read) moved to `to_thread` as well.
+**Verified:** same repros after the fix — longest tick gap **3.05 s → 0.06 s** (6 → 65
+ticks), two sessions **4.01 s → 2.01 s**. 4 regression tests in `tests/test_code_exec.py`
+(ticker liveness, cross-session concurrency, a*/sync agreement, and a static guard that no
+un-awaited `kernel.executor.*` call returns to `run_python`), all confirmed **failing against
+the pre-fix code**. Full suite **471 passed, 6 skipped**.
+**Known and accepted:** (a) same-session calls still serialize on the kernel lock — correct,
+one kernel means one `df` namespace; (b) `asyncio.to_thread` is not cancellable, so a
+cancelled request leaves its worker thread running until the 30 s timeout bounds it;
+(c) `reset_kernels()` / `shutdown()` remain sync (≤5 s, process teardown only); (d) plot PNG
+reads in `_save_plots` stay on-loop — small files, unlike the dataset parquet.

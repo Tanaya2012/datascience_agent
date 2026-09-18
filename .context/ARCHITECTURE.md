@@ -18,7 +18,12 @@ The capability ceiling comes from a **code-execution escape hatch**; auditabilit
 comes from routing **every** data mutation through a versioned artifact + log.
 
 - A **persistent code-execution kernel** (L2: subprocess + dedicated worker venv)
-  holds the live `df` during a session — the fast working store.
+  holds the live `df` during a session — the fast working store. Its `execute` is
+  **blocking**, so async callers must go through the `CodeExecutor` async facade
+  (`aexecute` + the `a*` helpers, `asyncio.to_thread`); calling the sync form from
+  the `async def run_python` tool froze the whole event loop — and with it every
+  other session in the process (D29). An L4 container backend overrides `aexecute`
+  alone to drop the thread hop.
 - The **artifact layer is canonical** for handoffs and durability.
   `run_python(commit=True)` checkpoints the kernel's `df` to a new versioned
   Parquet artifact **plus a `TransformationLog`**, and updates `current_dataset_key`.
