@@ -854,3 +854,49 @@ one kernel means one `df` namespace; (b) `asyncio.to_thread` is not cancellable,
 cancelled request leaves its worker thread running until the 30 s timeout bounds it;
 (c) `reset_kernels()` / `shutdown()` remain sync (≤5 s, process teardown only); (d) plot PNG
 reads in `_save_plots` stay on-loop — small files, unlike the dataset parquet.
+
+### 2026-09-21 — D30: audit F4 — every kernel shared one scratch dir (and D29 activated it)
+**Context:** fourth finding from the 2026-09-03 health audit, and the one that D29 made
+urgent. `make_default_executor()` was always called without a `scratch_dir`, so every kernel
+got the same `$TMPDIR/ds_worker_scratch` — which is also each worker's `cwd`, `HOME`,
+`TMPDIR` and `MPLCONFIGDIR` — and the parent exchanged datasets through two **fixed**
+filenames inside it: `hydrate.parquet` and `commit.parquet`.
+**D29 turned this from latent into live.** The exchange is write-then-read; before D29 the
+two halves had no `await` between them, so they were atomic with respect to the event loop
+and the shared names never actually collided in-process. D29's thread hop opened a real gap
+in exactly those two windows. Measured with the same harness on both commits, two concurrent
+sessions each holding their own dataset:
+
+| | pre-D29 (`b86ace8`) | with D29 (`8978a39`) |
+|---|---|---|
+| session hydrates another session's dataset | 0/5 | **5/5** |
+| session commits another session's data | 0/5 | **5/5** |
+
+The commit case is the severe one: session A's rows land in session B's artifact **with a
+`TransformationLog` attesting to them** — silent corruption of the audit trail that is this
+project's core guarantee. Scope is `adk web` with concurrent sessions; single-session use
+(`chat.py`, `adk run`) is unaffected, which is why the whole suite stayed green — every
+existing test is single-session and sequential.
+**Measurement note (a false positive I had to back out):** the first commit-race run showed
+5/5 failures *pre-D29 too*. That was the harness, not the bug — both sessions default to
+`commit_step_name="run_python"`, so both computed `run_python__v1__dataset`, and the local
+fallback store is not session-namespaced (real ADK namespaces per session). Giving each
+session a distinct step name isolated the actual race and produced the table above.
+**Decision:** three parts, because no one of them is sufficient.
+1. **Per-kernel scratch dir, owned by the executor.** `SubprocessKernelExecutor` now
+   generates `SCRATCH_ROOT/<label>_<uuid8>` when no dir is passed, and `_owns_scratch`
+   records that it may delete it on `shutdown()`. An explicitly supplied dir is the
+   caller's and is never removed.
+2. **Unique exchange filenames** — `hydrate_<uuid8>.parquet` / `commit_<uuid8>.parquet`,
+   unlinked in a `finally`. The per-kernel dir alone does **not** close the race: the
+   parent-side write happens *outside* the kernel lock, so two concurrent calls in the
+   *same* session would still collide. This also stops dataset-sized temp files piling up.
+3. **A random suffix even though the label is session-derived.** A purely session-derived
+   name would re-collide across *processes* — `chat.py` hard-codes session id `"session"`,
+   so two REPLs would share a directory again.
+**Verified:** 0/20 on both races after the fix (from 5/5), kernels hold distinct dirs, no
+`.parquet` left in scratch after a commit, and `reset_kernels()` removes the generated dirs.
+6 tests in `tests/test_code_exec.py::TestScratchIsolation`; the 5 that describe the bug
+confirmed **failing against the pre-fix code**. Full suite **477 passed, 6 skipped**.
+**Note:** `plot_dir` was already per-call unique — the original author had solved this for
+plots and not for the parquet exchange.

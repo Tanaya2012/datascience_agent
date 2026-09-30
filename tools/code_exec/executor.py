@@ -18,10 +18,12 @@ import asyncio
 import json
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +35,11 @@ _DEFAULT_CPU_SECONDS = 20
 _DEFAULT_MEM_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB (not enforced on macOS)
 _DEFAULT_TIMEOUT = 30.0
 _STARTUP_TIMEOUT = 30.0
+
+# Parent dir for every kernel's private scratch dir. Each kernel gets its own
+# subdirectory below this; nothing is ever written to the root itself, so a sweeper
+# (M5d idle-TTL eviction) can reason about one place.
+SCRATCH_ROOT = os.path.join(os.environ.get("TMPDIR", "/tmp"), "ds_worker_scratch")
 
 # Env var names we must NEVER leak into the sandbox.
 _SECRET_HINTS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
@@ -177,11 +184,20 @@ class SubprocessKernelExecutor(CodeExecutor):
         cpu_seconds: int = _DEFAULT_CPU_SECONDS,
         mem_bytes: int = _DEFAULT_MEM_BYTES,
         default_timeout: float = _DEFAULT_TIMEOUT,
+        scratch_label: str | None = None,
     ):
         self.python_executable = python_executable or sys.executable
-        self.scratch_dir = scratch_dir or os.path.join(
-            os.environ.get("TMPDIR", "/tmp"), "ds_worker_scratch"
-        )
+        # The scratch dir is this worker's cwd, HOME and TMPDIR, and holds the parquet
+        # files exchanged with the parent. It must therefore be **per kernel**: a shared
+        # one let concurrent sessions read each other's datasets (D30). When we generate
+        # it we also own it, and delete it on shutdown; an explicitly supplied dir belongs
+        # to the caller and is left alone.
+        self._owns_scratch = scratch_dir is None
+        if scratch_dir is None:
+            suffix = uuid.uuid4().hex[:8]
+            name = f"{scratch_label}_{suffix}" if scratch_label else f"kernel_{suffix}"
+            scratch_dir = os.path.join(SCRATCH_ROOT, name)
+        self.scratch_dir = scratch_dir
         os.makedirs(self.scratch_dir, exist_ok=True)
         self.cpu_seconds = cpu_seconds
         self.mem_bytes = mem_bytes
@@ -292,6 +308,9 @@ class SubprocessKernelExecutor(CodeExecutor):
             except Exception:
                 self._kill()
         self._proc = None
+        # Only remove a scratch dir we generated — an explicit one is the caller's.
+        if self._owns_scratch:
+            shutil.rmtree(self.scratch_dir, ignore_errors=True)
 
     # --- execution ----------------------------------------------------------
 
@@ -346,17 +365,22 @@ class SubprocessKernelExecutor(CodeExecutor):
                 )
 
 
-def make_default_executor(scratch_dir: str | None = None) -> SubprocessKernelExecutor:
+def make_default_executor(scratch_dir: str | None = None,
+                          scratch_label: str | None = None) -> SubprocessKernelExecutor:
     """
     Build the production executor, resolving the worker interpreter:
       WORKER_PYTHON env  →  repo .worker-venv  →  fallback to current interpreter.
 
     The fallback keeps the agent working before the worker venv is bootstrapped
     (and lets tests run), at the cost of running in the agent's own venv.
+
+    Leave `scratch_dir` unset so the executor generates (and cleans up) its own
+    private one; `scratch_label` just makes that directory identifiable.
     """
     py = os.environ.get("WORKER_PYTHON")
     if not py:
         repo_root = Path(__file__).resolve().parents[2]
         candidate = repo_root / ".worker-venv" / "bin" / "python"
         py = str(candidate) if candidate.exists() else sys.executable
-    return SubprocessKernelExecutor(python_executable=py, scratch_dir=scratch_dir)
+    return SubprocessKernelExecutor(python_executable=py, scratch_dir=scratch_dir,
+                                    scratch_label=scratch_label)

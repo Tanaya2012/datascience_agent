@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-21
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -22,15 +22,21 @@ persistent sessions were paired with an in-memory artifact store, so a restart r
 dangling artifact keys; `chat.py` + the documented `adk web` invocation now use
 `FileArtifactService`. **F3 fixed (D29)** — `run_python` called the sync executor from an
 async tool, freezing the event loop (and so every other session under `adk web`) for the
-whole call; `CodeExecutor` gained an async facade. **471 passed, 6 skipped.**
-Remaining, unverified: F4 (kernels share a scratch dir), plus deps/docs/CI items.
+whole call; `CodeExecutor` gained an async facade. **F4 fixed (D30)** — every kernel shared
+one scratch dir + fixed `hydrate`/`commit.parquet` names, so concurrent sessions read each
+other's datasets and committed each other's data; kernels now get private, auto-cleaned
+scratch dirs with per-call filenames. **Note D29 activated F4** (0/5 → 5/5 corruption): the
+two were a pair, and the fixes belong together. **477 passed, 6 skipped.**
+Remaining, unverified: the deps/docs/CI items (undeclared `litellm`/`numpy`, ADK 2.1.0 vs
+2.8.0, unpinned `mcp`, `pytest.ini` double-import, M4-era docs, no CI/pyproject/LICENSE,
+tests leaking into `outputs/`).
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
 - Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
   (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **471 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **477 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
   `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
   (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12

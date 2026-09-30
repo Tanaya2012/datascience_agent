@@ -23,7 +23,9 @@ comes from routing **every** data mutation through a versioned artifact + log.
   (`aexecute` + the `a*` helpers, `asyncio.to_thread`); calling the sync form from
   the `async def run_python` tool froze the whole event loop — and with it every
   other session in the process (D29). An L4 container backend overrides `aexecute`
-  alone to drop the thread hop.
+  alone to drop the thread hop. Each kernel also owns a **private scratch dir**
+  (its `cwd`/`HOME`/`TMPDIR`) and exchanges parquet through per-call filenames:
+  sharing either let concurrent sessions read and commit each other's data (D30).
 - The **artifact layer is canonical** for handoffs and durability.
   `run_python(commit=True)` checkpoints the kernel's `df` to a new versioned
   Parquet artifact **plus a `TransformationLog`**, and updates `current_dataset_key`.

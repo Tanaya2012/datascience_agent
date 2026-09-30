@@ -277,3 +277,115 @@ class TestEventLoopIsNotBlocked:
         sync_calls = re.findall(
             r"(?<!await )kernel\.executor\.(?!shutdown)(\w+)\(", src)
         assert not sync_calls, f"un-awaited executor calls in async tool: {sync_calls}"
+
+
+# ---------------------------------------------------------------------------
+# Scratch-dir isolation between sessions (audit F4 / D30)
+# ---------------------------------------------------------------------------
+
+async def _seed_session(ctx, who: str, version: int):
+    """Give `ctx` its own dataset, every row tagged with `who`."""
+    import pandas as pd
+
+    from datascience_agent.tools.artifact_utils import (
+        df_to_parquet_bytes, make_artifact_key, save_artifact, set_session_state,
+    )
+    from datascience_agent.tools.schemas import AgentSessionState
+
+    df = pd.DataFrame({"who": [who] * 5_000, "n": range(5_000)})
+    key = make_artifact_key("dataset_loader", version, "dataset")
+    await save_artifact(key, df_to_parquet_bytes(df), ctx)
+    set_session_state(AgentSessionState(current_dataset_key=key), ctx)
+
+
+@pytest.fixture
+def isolated_artifacts(tmp_path, monkeypatch):
+    """Keep fallback artifact writes out of the project's artifacts/ dir."""
+    from datascience_agent.tools import artifact_utils
+
+    monkeypatch.setattr(artifact_utils, "ARTIFACTS_DIR", tmp_path / "artifacts")
+    return tmp_path
+
+
+class TestScratchIsolation:
+    async def test_each_session_gets_its_own_scratch_dir(self):
+        import asyncio
+
+        from datascience_agent.tools.code_exec.run_python import _KERNELS
+
+        a, b = _ctx_for("scratch-a"), _ctx_for("scratch-b")
+        await asyncio.gather(run_python("1", tool_context=a),
+                             run_python("1", tool_context=b))
+        dirs = {k.executor.scratch_dir for k in _KERNELS.values()}
+        assert len(dirs) == 2, f"sessions shared a scratch dir: {dirs}"
+
+    async def test_concurrent_sessions_do_not_swap_datasets(self, isolated_artifacts):
+        """The parent writes the hydrate parquet, then awaits while the kernel reads it.
+        With a shared filename the other session overwrites it inside that gap."""
+        import asyncio
+
+        a, b = _ctx_for("hydrate-a"), _ctx_for("hydrate-b")
+        await _seed_session(a, "A", 1)
+        await _seed_session(b, "B", 2)
+
+        ra, rb = await asyncio.gather(
+            run_python("print(df['who'].iloc[0])", tool_context=a),
+            run_python("print(df['who'].iloc[0])", tool_context=b),
+        )
+        assert ra["stdout"].strip() == "A", "session A hydrated another session's dataset"
+        assert rb["stdout"].strip() == "B", "session B hydrated another session's dataset"
+
+    async def test_concurrent_commits_do_not_cross_contaminate(self, isolated_artifacts):
+        """The kernel writes the commit parquet, then the parent awaits before reading —
+        a shared filename commits the other session's data into this session's lineage."""
+        import asyncio
+
+        from datascience_agent.tools.artifact_utils import parquet_bytes_to_df
+
+        a, b = _ctx_for("commit-a"), _ctx_for("commit-b")
+        await _seed_session(a, "A", 1)
+        await _seed_session(b, "B", 2)
+        await run_python("1", tool_context=a)          # hydrate separately …
+        await run_python("1", tool_context=b)
+
+        # Distinct step names so the artifact *keys* differ: the local fallback store
+        # is not session-namespaced, and identical keys would collide independently
+        # of the bug under test.
+        await asyncio.gather(
+            run_python("df.shape", commit=True, commit_step_name="sess_a", tool_context=a),
+            run_python("df.shape", commit=True, commit_step_name="sess_b", tool_context=b),
+        )
+        for name, ctx in (("A", a), ("B", b)):
+            key = get_session_state(ctx).current_dataset_key
+            df = parquet_bytes_to_df(await load_artifact(key, ctx))
+            assert df["who"].unique().tolist() == [name], \
+                f"session {name} committed another session's data"
+
+    async def test_scratch_parquets_are_cleaned_up(self, isolated_artifacts):
+        from datascience_agent.tools.code_exec.run_python import _KERNELS
+
+        ctx = _ctx_for("cleanup-one")
+        await _seed_session(ctx, "A", 1)
+        await run_python("df.shape", commit=True, tool_context=ctx)
+
+        scratch = list(_KERNELS.values())[0].executor.scratch_dir
+        leftovers = [f for f in os.listdir(scratch) if f.endswith(".parquet")]
+        assert leftovers == [], f"scratch parquets left behind: {leftovers}"
+
+    async def test_reset_removes_generated_scratch_dirs(self):
+        from datascience_agent.tools.code_exec.run_python import _KERNELS
+
+        await run_python("1", tool_context=_ctx_for("cleanup-two"))
+        dirs = [k.executor.scratch_dir for k in _KERNELS.values()]
+        assert all(os.path.isdir(d) for d in dirs)
+        reset_kernels()
+        assert not any(os.path.isdir(d) for d in dirs)
+
+    def test_caller_supplied_scratch_dir_is_not_deleted(self, tmp_path):
+        """We only clean up directories we generated."""
+        mine = tmp_path / "caller-owned"
+        mine.mkdir()
+        ex = make_default_executor(scratch_dir=str(mine))
+        ex.start()
+        ex.shutdown()
+        assert mine.is_dir(), "shutdown deleted a caller-supplied scratch dir"

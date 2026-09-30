@@ -80,13 +80,29 @@ def _get_kernel(tool_context: Optional[ToolContext]) -> _Kernel:
     key = _session_key(tool_context)
     kernel = _KERNELS.get(key)
     if kernel is None:
-        kernel = _Kernel(executor=make_default_executor())
+        # The label only makes the scratch dir identifiable; the executor still appends
+        # a random suffix, so two processes serving the same session id (two `chat.py`
+        # runs, say) cannot land on the same directory.
+        label = "session_" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
+        kernel = _Kernel(executor=make_default_executor(scratch_label=label))
         _KERNELS[key] = kernel
     return kernel
 
 
+async def _unlink(path: str) -> None:
+    """Best-effort delete of a scratch parquet (they are dataset-sized)."""
+    try:
+        await asyncio.to_thread(os.unlink, path)
+    except OSError:
+        pass
+
+
 def reset_kernels() -> None:
-    """Shut down all kernels (used by tests / teardown)."""
+    """Shut down all kernels (used by tests / teardown).
+
+    Each executor owns its scratch dir and removes it on shutdown, so this also
+    cleans the per-session directories under `SCRATCH_ROOT`.
+    """
     for kernel in _KERNELS.values():
         try:
             kernel.executor.shutdown()
@@ -150,9 +166,15 @@ async def run_python(
     if current_key and current_key != kernel.loaded_key:
         try:
             raw = await load_artifact(current_key, tool_context)
-            hydrate_path = os.path.join(scratch, "hydrate.parquet")
-            await asyncio.to_thread(Path(hydrate_path).write_bytes, raw)
-            hres = await kernel.executor.ahydrate_dataframe(hydrate_path)
+            # Unique per call: the write and the kernel's read are separated by an
+            # await, so a fixed name lets a concurrent call substitute its own
+            # dataset in the gap (D30).
+            hydrate_path = os.path.join(scratch, f"hydrate_{uuid.uuid4().hex[:8]}.parquet")
+            try:
+                await asyncio.to_thread(Path(hydrate_path).write_bytes, raw)
+                hres = await kernel.executor.ahydrate_dataframe(hydrate_path)
+            finally:
+                await _unlink(hydrate_path)
             if not hres.ok:
                 warnings.append(f"Failed to load df into kernel: {hres.error_type}")
             else:
@@ -240,16 +262,22 @@ async def _commit_df(
 ) -> bool:
     """Snapshot the kernel's df to a new versioned artifact + TransformationLog."""
     scratch = getattr(kernel.executor, "scratch_dir", "/tmp")
-    out_path = os.path.join(scratch, "commit.parquet")
-    snap = await kernel.executor.asnapshot_dataframe(out_path)
-    if not snap.ok:
-        warnings.append(f"Commit failed while writing df: {snap.error_type}")
-        return False
+    # Unique per call, for the same reason as hydrate: the kernel's write and the
+    # parent's read straddle an await, and reading back another session's snapshot
+    # would commit their data into this session's audit trail (D30).
+    out_path = os.path.join(scratch, f"commit_{uuid.uuid4().hex[:8]}.parquet")
     try:
-        data = await asyncio.to_thread(Path(out_path).read_bytes)
-    except OSError as exc:
-        warnings.append(f"Commit failed reading snapshot: {exc}")
-        return False
+        snap = await kernel.executor.asnapshot_dataframe(out_path)
+        if not snap.ok:
+            warnings.append(f"Commit failed while writing df: {snap.error_type}")
+            return False
+        try:
+            data = await asyncio.to_thread(Path(out_path).read_bytes)
+        except OSError as exc:
+            warnings.append(f"Commit failed reading snapshot: {exc}")
+            return False
+    finally:
+        await _unlink(out_path)
 
     version = next_version(state.artifact_manifest, commit_step_name)
     artifact_key = make_artifact_key(commit_step_name, version, "dataset")
