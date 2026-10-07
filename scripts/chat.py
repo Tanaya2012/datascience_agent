@@ -3,7 +3,7 @@ Interactive REPL for the data-science agent (a clear, dependency-light way to
 test it by hand). Prints each tool call and whether a step committed a new
 dataset version, then the agent's reply. Keeps one session across turns.
 
-Run from /Users/tushar/interests:
+Run from any directory (after `pip install -e .`):
   conda run -n dsagent python -m datascience_agent.scripts.chat
 
 Type your messages; 'exit' / 'quit' (or Ctrl-D) to leave.

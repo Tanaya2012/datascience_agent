@@ -17,7 +17,7 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from tools.schemas import (
+from datascience_agent.tools.schemas import (
     AgentSessionState,
     ArtifactManifest,
     BaseToolResult,
@@ -59,7 +59,7 @@ from tools.schemas import (
     ValidatorResult,
     DataProfilerConfig,
 )
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     build_column_profile,
     build_dataset_profile,
     compute_checksum,
@@ -138,7 +138,7 @@ class TestEnums:
         assert len(TaskType) == 18
 
     def test_association_method_is_superset_of_correlation_method(self):
-        from tools.schemas import AssociationMethod, CorrelationMethod
+        from datascience_agent.tools.schemas import AssociationMethod, CorrelationMethod
 
         assert {m.value for m in AssociationMethod} == {"pearson", "spearman", "anova_f"}
         # Every correlation method is also a valid association method (str-enum compatible).
@@ -602,7 +602,7 @@ class TestArtifactKeyGeneration:
         assert key == "profile_dataset__v1__profile"
 
     def test_mime_for_key_infers_image_and_text(self):
-        from tools.artifact_utils import _mime_for_key
+        from datascience_agent.tools.artifact_utils import _mime_for_key
 
         assert _mime_for_key("plot_dataset__v1__plot_ab12.png") == "image/png"
         assert _mime_for_key("explore.json") == "application/json"
@@ -629,8 +629,8 @@ class TestArtifactKeyGeneration:
         """Read-only tools register no DatasetVersion, so a manifest-counting version
         would stay at 1 forever and each call would overwrite the previous call's
         artifact — silently corrupting durable pointers like ModelRecord."""
-        from tools.artifact_utils import next_report_version
-        from tools.schemas import AgentSessionState
+        from datascience_agent.tools.artifact_utils import next_report_version
+        from datascience_agent.tools.schemas import AgentSessionState
 
         state = AgentSessionState()
         assert next_report_version(state, "train_model") == 1

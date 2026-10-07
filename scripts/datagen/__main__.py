@@ -1,6 +1,6 @@
 """CLI for the planted-truth corpus.
 
-Usage (from /Users/tushar/interests):
+Usage (from any directory, after `pip install -e .`):
 
     # everything, into <project>/data/corpus (gitignored, regenerable from --seed)
     conda run -n dsagent python -m datascience_agent.scripts.datagen --all

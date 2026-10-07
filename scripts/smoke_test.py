@@ -3,7 +3,7 @@ Interactive smoke test: drive the root agent through the ADK Runner with a real
 LLM call, exercising the load → profile path on a tiny CSV.
 
 Run: conda run -n dsagent python -m datascience_agent.scripts.smoke_test
-(must be run from /Users/tushar/interests so the package is importable)
+(runs from any directory once the package is installed: `pip install -e .`)
 """
 
 from __future__ import annotations

@@ -33,11 +33,11 @@ tests** (`statistical_test`) on Analysis.
 
 ## Ways to run
 
-All commands are run from the **parent** directory `/Users/tushar/interests`.
+All commands are run from the **project** directory, after the one-time `pip install -e .` in the README setup.
 
 ### 1. Browser dev UI (recommended — shows tool calls, artifacts, state)
 ```
-conda run -n dsagent adk web datascience_agent
+conda run -n dsagent adk web .
 ```
 Open the printed URL (usually http://localhost:8000), pick `datascience_agent`, chat.
 
@@ -46,17 +46,17 @@ resumes state (note the async-SQLite driver in the URI). Pass **both** URIs — 
 state holds artifact *keys*, so a persistent session with the default in-memory artifact
 store comes back pointing at datasets that no longer exist:
 ```
-conda run -n dsagent adk web datascience_agent \
-  --session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db" \
-  --artifact_service_uri "file://$(pwd)/datascience_agent/artifacts"
+conda run -n dsagent adk web . \
+  --session_service_uri "sqlite+aiosqlite:///$(pwd)/sessions/sessions.db" \
+  --artifact_service_uri "file://$(pwd)/artifacts"
 ```
 The `scripts/chat.py` REPL uses a persistent store by default (resumes session `session`).
 
 ### 2. Terminal (ADK interactive)
 ```
-conda run -n dsagent adk run datascience_agent
+conda run -n dsagent adk run .
 ```
-One-shot mode: `adk run datascience_agent "your question"`.
+One-shot mode: `adk run . "your question"`.
 
 ### 3. Simple REPL script (clear tool-call trace)
 ```

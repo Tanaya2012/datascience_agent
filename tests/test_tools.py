@@ -16,14 +16,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
     load_artifact,
     make_artifact_key,
     parquet_bytes_to_df,
     ARTIFACTS_DIR,
 )
-from tools.schemas import (
+from datascience_agent.tools.schemas import (
     AgentSessionState,
     DatasetVersion,
     MissingStrategy,
@@ -66,7 +66,7 @@ class _MockCtxWithState:
     """MockCtx whose state is pre-seeded with an AgentSessionState."""
 
     def __init__(self, state: AgentSessionState):
-        from tools.artifact_utils import SESSION_STATE_KEY
+        from datascience_agent.tools.artifact_utils import SESSION_STATE_KEY
         self.state = {SESSION_STATE_KEY: state.model_dump(mode="json")}
 
     async def save_artifact(self, **_):
@@ -82,7 +82,7 @@ class _MockCtxWithState:
 
 class TestDatasetLoader:
     async def test_load_csv_success(self, csv_file):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("local", str(csv_file))
 
@@ -93,7 +93,7 @@ class TestDatasetLoader:
         assert len(result["schema_summary"]) == 4
 
     async def test_artifact_persisted_to_disk(self, csv_file):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         await dataset_loader("local", str(csv_file))
 
@@ -103,7 +103,7 @@ class TestDatasetLoader:
         assert list(df.columns) == ["Name", "Age", "Salary", "JoinDate"]
 
     async def test_load_excel(self, tmp_path, sample_df):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         p = tmp_path / "data.xlsx"
         sample_df.to_excel(p, index=False)
@@ -113,7 +113,7 @@ class TestDatasetLoader:
         assert result["shape_after"]["rows"] == 5
 
     async def test_missing_file_returns_failure(self):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("local", "/nonexistent/path/data.csv")
 
@@ -121,7 +121,7 @@ class TestDatasetLoader:
         assert result["error_message"] is not None
 
     async def test_unsupported_format_returns_failure(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         p = tmp_path / "data.json"
         p.write_text('{"a": 1}')
@@ -130,14 +130,14 @@ class TestDatasetLoader:
         assert result["success"] is False
 
     async def test_unknown_source_type_returns_failure(self, csv_file):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("s3", str(csv_file))
 
         assert result["success"] is False
 
     async def test_kaggle_source_type_rejected(self):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("kaggle", "owner/dataset-name")
 
@@ -145,7 +145,7 @@ class TestDatasetLoader:
         assert "local" in result["error_message"].lower()
 
     async def test_secondary_dataset_flag(self, secondary_csv):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader(
             "local", str(secondary_csv), is_secondary=True, secondary_name="depts"
@@ -156,7 +156,7 @@ class TestDatasetLoader:
         assert result["output_artifact_key"] is not None
 
     async def test_schema_summary_contains_sample(self, csv_file):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("local", str(csv_file))
 
@@ -165,7 +165,7 @@ class TestDatasetLoader:
         assert "Age" in cols
 
     async def test_version_increments_on_second_call(self, csv_file, mock_ctx):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         # Both calls share mock_ctx so state (artifact manifest) accumulates.
         r1 = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
@@ -181,8 +181,8 @@ class TestDatasetLoader:
 
 class TestDataProfiler:
     async def test_profile_success(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -195,8 +195,8 @@ class TestDataProfiler:
         """Profiling before and after cleaning must yield two comparable artifacts —
         read-only steps register no DatasetVersion, so a manifest-counting version
         would hand both runs the same key and lose the first."""
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
         first = await profile_dataset(load_r["output_artifact_key"], tool_context=mock_ctx)
@@ -206,8 +206,8 @@ class TestDataProfiler:
         assert first["profile_artifact_key"] != second["profile_artifact_key"]
 
     async def test_profile_contains_all_columns(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -216,8 +216,8 @@ class TestDataProfiler:
         assert col_names == {"Name", "Age", "Salary", "JoinDate"}
 
     async def test_profile_detects_missing_values(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -228,8 +228,8 @@ class TestDataProfiler:
         assert age_profile["missing_count"] == 1
 
     async def test_profile_quality_score_in_range(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -238,8 +238,8 @@ class TestDataProfiler:
         assert 0.0 <= score <= 100.0
 
     async def test_profile_artifact_key_saved(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -248,7 +248,7 @@ class TestDataProfiler:
         assert (ARTIFACTS_DIR / "profile_dataset__v1__profile").exists()
 
     async def test_profile_missing_artifact_returns_failure(self):
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         result = await profile_dataset("nonexistent/v99/dataset")
 
@@ -257,8 +257,8 @@ class TestDataProfiler:
 
     async def test_profile_dataset_unchanged(self, csv_file):
         """Profiling should never modify the dataset artifact."""
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         key = load_r["output_artifact_key"]
@@ -274,8 +274,8 @@ class TestDataProfiler:
 
 class TestMissingHandler:
     async def test_median_imputation(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -290,8 +290,8 @@ class TestMissingHandler:
         assert df["Age"].isna().sum() == 0
 
     async def test_mean_imputation(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -304,8 +304,8 @@ class TestMissingHandler:
         assert df["Salary"].isna().sum() == 0
 
     async def test_mode_imputation(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -316,8 +316,8 @@ class TestMissingHandler:
         assert result["success"] is True
 
     async def test_constant_imputation(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -331,8 +331,8 @@ class TestMissingHandler:
         assert "Unknown" in df["Name"].values
 
     async def test_constant_missing_fill_value_produces_warning(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -345,8 +345,8 @@ class TestMissingHandler:
         assert any("constant" in w.lower() for w in result["warnings"])
 
     async def test_drop_row_strategy(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -359,8 +359,8 @@ class TestMissingHandler:
         assert result["shape_after"]["rows"] == 4
 
     async def test_ffill_strategy(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         df = pd.DataFrame({"val": [1.0, None, None, 4.0]})
         p = tmp_path / "fill.csv"
@@ -376,8 +376,8 @@ class TestMissingHandler:
         assert df_out["val"].isna().sum() == 0
 
     async def test_bfill_strategy(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         df = pd.DataFrame({"val": [None, None, 3.0, 4.0]})
         p = tmp_path / "bfill.csv"
@@ -393,8 +393,8 @@ class TestMissingHandler:
         assert df_out["val"].isna().sum() == 0
 
     async def test_drop_threshold_removes_column(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         # 'junk' column is 80% missing → should be dropped at threshold=0.5
         df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "junk": [None, None, None, None, 1.0]})
@@ -413,8 +413,8 @@ class TestMissingHandler:
         assert "junk" not in df_out.columns
 
     async def test_nonexistent_column_produces_warning(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -426,7 +426,7 @@ class TestMissingHandler:
         assert any("ghost_column" in w for w in result["warnings"])
 
     async def test_missing_artifact_returns_failure(self):
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         result = await handle_missing_values(
             "nonexistent/v1/dataset",
@@ -435,8 +435,8 @@ class TestMissingHandler:
         assert result["success"] is False
 
     async def test_cells_modified_count(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -454,8 +454,8 @@ class TestMissingHandler:
 
 class TestStandardizer:
     async def test_snake_case_headers(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"First Name": ["a"], "Last-Name": ["b"], "AgeYears": [1]})
         p = tmp_path / "messy.csv"
@@ -470,8 +470,8 @@ class TestStandardizer:
         assert "age_years" in df_out.columns
 
     async def test_rename_tracked_in_column_lineage(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"First Name": [1], "Second Name": [2]})
         p = tmp_path / "names.csv"
@@ -484,8 +484,8 @@ class TestStandardizer:
         assert renames["First Name"] == "first_name"
 
     async def test_currency_stripped_to_float(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"price": ["$1,200.50", "$999.00", None]})
         p = tmp_path / "prices.csv"
@@ -501,8 +501,8 @@ class TestStandardizer:
         assert df_out["price"].dropna().iloc[0] == pytest.approx(1200.50)
 
     async def test_numeric_string_coercion(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"score": ["10", "20", "30", "40", "50"]})
         p = tmp_path / "scores.csv"
@@ -517,8 +517,8 @@ class TestStandardizer:
         assert pd.api.types.is_numeric_dtype(df_out["score"])
 
     async def test_date_parsing(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"event_date": ["2020-01-01", "2021-06-15", "2022-12-31"]})
         p = tmp_path / "dates.csv"
@@ -533,8 +533,8 @@ class TestStandardizer:
         assert pd.api.types.is_datetime64_any_dtype(df_out["event_date"])
 
     async def test_no_changes_when_all_disabled(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await standardize_formats(
@@ -549,7 +549,7 @@ class TestStandardizer:
         assert result["cells_modified"] == 0
 
     async def test_missing_artifact_returns_failure(self):
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         result = await standardize_formats("nonexistent/v1/dataset")
 
@@ -562,8 +562,8 @@ class TestStandardizer:
 
 class TestDeduplicator:
     async def test_exact_dedup_removes_duplicate_row(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await deduplicate_dataset(load_r["output_artifact_key"], exact_dedup=True)
@@ -573,8 +573,8 @@ class TestDeduplicator:
         assert result["shape_after"]["rows"] == 4
 
     async def test_exact_dedup_keep_last(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await deduplicate_dataset(
@@ -585,8 +585,8 @@ class TestDeduplicator:
         assert result["exact_duplicates_removed"] == 1
 
     async def test_no_duplicates_no_rows_removed(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         p = tmp_path / "unique.csv"
@@ -599,8 +599,8 @@ class TestDeduplicator:
         assert result["rows_removed"] == 0
 
     async def test_fuzzy_dedup_removes_near_duplicates(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"name": ["Alice Smith", "Alice Smyth", "Bob Jones"]})
         p = tmp_path / "fuzzy.csv"
@@ -618,8 +618,8 @@ class TestDeduplicator:
         assert result["fuzzy_duplicates_removed"] >= 1
 
     async def test_fuzzy_dedup_without_columns_produces_warning(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await deduplicate_dataset(
@@ -632,15 +632,15 @@ class TestDeduplicator:
         assert any("fuzzy" in w.lower() for w in result["warnings"])
 
     async def test_missing_artifact_returns_failure(self):
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         result = await deduplicate_dataset("nonexistent/v1/dataset")
 
         assert result["success"] is False
 
     async def test_confidence_lower_for_fuzzy(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"name": ["Alice", "Bob"]})
         p = tmp_path / "c.csv"
@@ -674,7 +674,7 @@ class TestMerge:
         - ctx.state has secondary_datasets["depts"] registered
         Returns the primary artifact key.
         """
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         r1 = await dataset_loader("local", str(csv_file), tool_context=ctx)
         await dataset_loader(
@@ -685,7 +685,7 @@ class TestMerge:
         return r1["output_artifact_key"]
 
     async def test_left_join_success(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(primary_key, "depts", "Name", "left", tool_context=mock_ctx)
@@ -694,7 +694,7 @@ class TestMerge:
         assert result["merged_shape"]["cols"] > 4  # new column Dept added
 
     async def test_inner_join_drops_unmatched(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(primary_key, "depts", "Name", "inner", tool_context=mock_ctx)
@@ -704,7 +704,7 @@ class TestMerge:
         assert len(df) <= 5
 
     async def test_match_rate_computed(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(primary_key, "depts", "Name", tool_context=mock_ctx)
@@ -712,7 +712,7 @@ class TestMerge:
         assert 0.0 <= result["match_rate"] <= 1.0
 
     async def test_missing_secondary_name_returns_failure(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         # Use a fresh ctx with no secondary datasets registered
@@ -723,7 +723,7 @@ class TestMerge:
         assert "not found" in result["error_message"].lower()
 
     async def test_missing_join_key_in_primary_returns_failure(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(primary_key, "depts", "nonexistent_col", tool_context=mock_ctx)
@@ -731,7 +731,7 @@ class TestMerge:
         assert result["success"] is False
 
     async def test_invalid_join_type_returns_failure(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(
@@ -741,7 +741,7 @@ class TestMerge:
         assert result["success"] is False
 
     async def test_new_columns_tracked_in_lineage(self, csv_file, secondary_csv, mock_ctx):
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(primary_key, "depts", "Name", tool_context=mock_ctx)
@@ -755,8 +755,8 @@ class TestMerge:
 
 class TestValidator:
     async def test_clean_dataset_gets_high_score(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         df = pd.DataFrame({"a": [1, 2, 3, 4, 5], "b": ["x", "y", "z", "w", "v"]})
         p = tmp_path / "clean.csv"
@@ -769,8 +769,8 @@ class TestValidator:
         assert result["passed"] is True
 
     async def test_dirty_dataset_gets_lower_score(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await validate_dataset(load_r["output_artifact_key"])
@@ -779,8 +779,8 @@ class TestValidator:
         assert result["quality_score"] < 100.0
 
     async def test_issues_list_populated_for_dirty_data(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         df = pd.DataFrame(
             {
@@ -797,8 +797,8 @@ class TestValidator:
         assert len(result["issues"]) > 0
 
     async def test_duplicate_rows_flagged(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await validate_dataset(load_r["output_artifact_key"])
@@ -807,8 +807,8 @@ class TestValidator:
         assert "near_duplicates" in issue_types
 
     async def test_passed_threshold_is_70(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         # 75% of values missing in one column  → big penalty → score < 70 → not passed
         df = pd.DataFrame({"x": [None, None, None, 1.0]})
@@ -824,8 +824,8 @@ class TestValidator:
             assert result["passed"] is True
 
     async def test_report_artifact_saved(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await validate_dataset(load_r["output_artifact_key"])
@@ -835,15 +835,15 @@ class TestValidator:
         assert report_path.exists()
 
     async def test_missing_artifact_returns_failure(self):
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.validator import validate_dataset
 
         result = await validate_dataset("nonexistent/v1/dataset")
 
         assert result["success"] is False
 
     async def test_dataset_unchanged_after_validation(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(csv_file))
         key = load_r["output_artifact_key"]
@@ -862,12 +862,12 @@ class TestOutputGenerator:
     def _redirect_outputs(self, tmp_path, monkeypatch):
         """Write user-facing exports under tmp so tests don't pollute ./outputs."""
         monkeypatch.setattr(
-            "tools.output_generator._DEFAULT_OUTPUTS_ROOT", tmp_path / "outputs"
+            "datascience_agent.tools.output_generator._DEFAULT_OUTPUTS_ROOT", tmp_path / "outputs"
         )
 
     async def test_output_success(self, csv_file, mock_ctx):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
@@ -878,8 +878,8 @@ class TestOutputGenerator:
         assert result["report_artifact_key"] is not None
 
     async def test_writes_user_facing_files_to_disk(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
         import json
 
         load_r = await dataset_loader("local", str(csv_file))
@@ -896,8 +896,8 @@ class TestOutputGenerator:
         assert "# Data Cleaning Quality Report" in Path(result["report_path"]).read_text()
 
     async def test_custom_output_dir(self, csv_file, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         target = tmp_path / "my_exports"
         load_r = await dataset_loader("local", str(csv_file))
@@ -908,8 +908,8 @@ class TestOutputGenerator:
         assert (target / "cleaned_dataset.csv").exists()
 
     async def test_csv_artifact_is_valid_csv(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
@@ -920,8 +920,8 @@ class TestOutputGenerator:
         assert "Name" in df.columns
 
     async def test_log_artifact_is_valid_json(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
         import json
 
         load_r = await dataset_loader("local", str(csv_file))
@@ -932,8 +932,8 @@ class TestOutputGenerator:
         assert isinstance(logs, list)
 
     async def test_report_artifact_is_markdown(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
@@ -944,8 +944,8 @@ class TestOutputGenerator:
         assert "## Transformation Log" in report_text
 
     async def test_report_includes_summary_stats(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(
@@ -956,8 +956,8 @@ class TestOutputGenerator:
         assert "## Summary Statistics" in report_bytes.decode("utf-8")
 
     async def test_report_omits_summary_stats_when_disabled(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(
@@ -968,8 +968,8 @@ class TestOutputGenerator:
         assert "## Summary Statistics" not in report_bytes.decode("utf-8")
 
     async def test_log_contains_loader_entry(self, csv_file, mock_ctx):
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
         import json
 
         # Both calls share mock_ctx so the loader's TransformationLog is visible
@@ -983,7 +983,7 @@ class TestOutputGenerator:
         assert "dataset_loader" in step_names
 
     async def test_missing_artifact_returns_failure(self):
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.output_generator import generate_output
 
         result = await generate_output("nonexistent/v1/dataset")
 
@@ -997,13 +997,13 @@ class TestOutputGenerator:
 class TestEndToEndPipeline:
     async def test_full_pipeline(self, csv_file, mock_ctx):
         """Run all 7 tool steps sharing one mock_ctx and verify the final output."""
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
-        from tools.cleaning.missing_handler import handle_missing_values
-        from tools.cleaning.standardizer import standardize_formats
-        from tools.cleaning.deduplicator import deduplicate_dataset
-        from tools.validator import validate_dataset
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.validator import validate_dataset
+        from datascience_agent.tools.output_generator import generate_output
         import json
 
         ctx = mock_ctx  # shared context accumulates state across all steps

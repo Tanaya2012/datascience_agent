@@ -12,13 +12,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     build_eda_report,
     df_to_parquet_bytes,
     make_artifact_key,
     save_artifact,
 )
-from tools.eda import explore_dataset
+from datascience_agent.tools.eda import explore_dataset
 
 
 @pytest.fixture()
@@ -138,8 +138,8 @@ async def test_explore_dataset_bad_key_errors(mock_ctx):
 async def test_explore_defaults_to_current_dataset_key(mock_ctx, corr_df):
     # Cross-specialist case: the tool is called with NO key and must fall back to
     # current_dataset_key from session state (the bug fixed for the multi-agent flow).
-    from tools.artifact_utils import set_session_state
-    from tools.schemas import AgentSessionState
+    from datascience_agent.tools.artifact_utils import set_session_state
+    from datascience_agent.tools.schemas import AgentSessionState
 
     key = await _seed_dataset(mock_ctx, corr_df)
     set_session_state(AgentSessionState(current_dataset_key=key), mock_ctx)

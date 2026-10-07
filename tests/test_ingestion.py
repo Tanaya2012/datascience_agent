@@ -16,9 +16,9 @@ import pandas as pd
 import pytest
 from google.genai import types
 
-from tools.ingestion import ingest_uploaded_file
-from tools.upload_callback import ingest_upload_callback
-from tools.artifact_utils import load_artifact, parquet_bytes_to_df
+from datascience_agent.tools.ingestion import ingest_uploaded_file
+from datascience_agent.tools.upload_callback import ingest_upload_callback
+from datascience_agent.tools.artifact_utils import load_artifact, parquet_bytes_to_df
 
 
 def _csv_bytes() -> bytes:

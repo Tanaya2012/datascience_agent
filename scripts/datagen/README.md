@@ -20,7 +20,8 @@ correctness.
 
 ## Usage
 
-Run from `/Users/tushar/interests` (the parent of the project dir):
+Run from the project dir (the commands themselves work from anywhere once the package is
+installed with `pip install -e .`; the Python snippet below assumes the project dir):
 
 ```bash
 # generate everything → <project>/data/corpus/  (gitignored, regenerable)

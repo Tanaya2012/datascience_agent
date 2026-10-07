@@ -12,9 +12,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import df_to_parquet_bytes, make_artifact_key, save_artifact, set_session_state
-from tools.schemas import AgentSessionState
-from tools.stats import statistical_test
+from datascience_agent.tools.artifact_utils import df_to_parquet_bytes, make_artifact_key, save_artifact, set_session_state
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.stats import statistical_test
 
 
 @pytest.fixture()

@@ -7,7 +7,7 @@ data_steward specialist is invoked; nested tool calls (dataset_loader,
 profile_dataset) run inside that sub-agent invocation.
 
 Run: conda run -n dsagent python -m datascience_agent.scripts.smoke_test_routing
-(must be run from /Users/tushar/interests so the package is importable)
+(runs from any directory once the package is installed: `pip install -e .`)
 """
 
 from __future__ import annotations

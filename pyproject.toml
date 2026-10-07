@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datascience-agent"
+version = "0.1.0"
+description = "LLM-guided data-science agent (cleaning, EDA, statistics, modeling) on Google ADK."
+readme = "README.MD"
+requires-python = ">=3.12"
+# Dependencies still live in requirements.txt; they move here with audit F5.
+
+[tool.setuptools]
+# The repo root IS the `datascience_agent` package (ADK loads it by directory name),
+# so the name is mapped onto "." and every subpackage is listed explicitly. Do NOT
+# switch to automatic discovery: with this layout it finds `tools`, `configs`,
+# `scripts` and `sub_agents` as *top-level* packages, which would install a second,
+# distinct copy of every module (D31). `tests` is deliberately not distributed.
+package-dir = {"datascience_agent" = "."}
+packages = [
+    "datascience_agent",
+    "datascience_agent.configs",
+    "datascience_agent.scripts",
+    "datascience_agent.scripts.datagen",
+    "datascience_agent.sub_agents",
+    "datascience_agent.tools",
+    "datascience_agent.tools.cleaning",
+    "datascience_agent.tools.code_exec",
+]

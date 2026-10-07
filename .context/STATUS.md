@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-09-21
+**Last updated:** 2026-10-01
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -26,33 +26,46 @@ whole call; `CodeExecutor` gained an async facade. **F4 fixed (D30)** — every 
 one scratch dir + fixed `hydrate`/`commit.parquet` names, so concurrent sessions read each
 other's datasets and committed each other's data; kernels now get private, auto-cleaned
 scratch dirs with per-call filenames. **Note D29 activated F4** (0/5 → 5/5 corruption): the
-two were a pair, and the fixes belong together. **477 passed, 6 skipped.**
-Remaining, unverified: the deps/docs/CI items (undeclared `litellm`/`numpy`, ADK 2.1.0 vs
-2.8.0, unpinned `mcp`, `pytest.ini` double-import, M4-era docs, no CI/pyproject/LICENSE,
-tests leaking into `outputs/`).
+two were a pair, and the fixes belong together. **F7 fixed (D31)** — the package was imported
+twice under test (`tools.*` vs `datascience_agent.*`: distinct modules, even two `_KERNELS`
+registries); it is now installed editable via `pyproject.toml` (explicit mapped package list),
+every flat import converted, the `pythonpath` hack dropped, two guards added, and the
+fuzzer's documented command works from any directory. **479 passed, 6 skipped.**
+**Open — found during F7, do next:** `conftest.clean_artifacts` `rmtree`s `<project>/artifacts/`
+before every test, and that is where D28's `FileArtifactService` persists `chat.py` sessions
+(and where Kaggle downloads land), so a test run wipes them. Latent — no session DB exists
+yet — but it is the destructive core of audit F8.
+Remaining audit items: F5 deps, F6 pins/locks, F8 test hygiene (incl. the above), F9 docs,
+F10 CI/ruff/LICENSE, F11–F20.
 **Branch:** main
 
 ## How to run
 Conda env **`dsagent`** (Python 3.12) = agent runtime; **`.worker-venv`** = code-exec sandbox.
-- Tests: `conda run -n dsagent python -m pytest -q` — run **from the project dir**
-  (`/Users/tushar/interests/datascience_agent`), NOT the parent (sibling repos break collection).
-  Last run: **477 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
-- **Planted-truth corpus** (D26), from `/Users/tushar/interests`:
+The package is **installed editable** into `dsagent` (`pip install -e .`, D31), so every
+`python -m datascience_agent.…` command works from any directory. Convention: run everything
+**from the project dir** (`/Users/tushar/interests/datascience_agent`); ADK is `adk web .` /
+`adk run .`. Import style is `datascience_agent.*` only — two guards enforce it (D31).
+- Tests: `conda run -n dsagent python -m pytest -q` (not from the parent dir: pytest would
+  collect the sibling repos).
+  Last run: **479 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+- Invariant fuzzer: `... python -m datascience_agent.scripts.fuzz_tools [N] [--out DIR]` —
+  report lands in a fresh temp dir per run (path printed). Last: 120 seeds, 0 findings.
+- **Planted-truth corpus** (D26):
   `... python -m datascience_agent.scripts.datagen --all` → `<project>/data/corpus/`
   (gitignored; regenerable — same seed ⇒ byte-identical CSVs). `--list` shows the 12
   scenarios; `--tier smoke` generates the cheap 6; **`--verify` replays every answer key
   against its CSV**. Contract + how to consume it: `scripts/datagen/README.md`.
-- Kaggle live smoke (tool-level, needs creds), from `/Users/tushar/interests`:
+- Kaggle live smoke (tool-level, needs creds):
   `... python -m datascience_agent.scripts.smoke_test_kaggle` (search + download).
-- LLM routing smoke (needs API key), from `/Users/tushar/interests`:
+- LLM routing smoke (needs API key):
   `... python -m datascience_agent.scripts.smoke_test_routing` (orchestrator→data_steward).
-- LLM eval suite (uses quota; needs `google-adk[eval]`): from the project dir,
+- LLM eval suite (uses quota; needs `google-adk[eval]`):
   `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (routing evalset).
 - **Persistent sessions:** `adk web/run … --session_service_uri
   "sqlite+aiosqlite:///<project>/sessions/sessions.db"` (async driver required)
   **plus `--artifact_service_uri "file://<project>/artifacts"`** — persist both or the
   resumed session points at artifacts the in-memory store dropped (D28).
-- LLM smoke tests (need API key; use real quota), run from `/Users/tushar/interests`:
+- LLM smoke tests (need API key; use real quota):
   `... python -m datascience_agent.scripts.smoke_test` (load+profile),
   `... python -m datascience_agent.scripts.smoke_test_m1` (run_python+commit),
   `... python -m datascience_agent.scripts.smoke_test_output` (generate_output → real paths).

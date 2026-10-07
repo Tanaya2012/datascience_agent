@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
     get_session_state,
     load_artifact,
@@ -32,9 +32,9 @@ from tools.artifact_utils import (
     set_session_state,
     save_artifact,
 )
-from tools.schemas import AgentSessionState
-from tools.cleaning.standardizer import standardize_formats
-from tools.feature_eng import encode_features
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.cleaning.standardizer import standardize_formats
+from datascience_agent.tools.feature_eng import encode_features
 
 
 async def _seed(mock_ctx, df: pd.DataFrame) -> None:

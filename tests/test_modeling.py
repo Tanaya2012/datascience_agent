@@ -13,12 +13,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes, get_session_state, load_artifact, make_artifact_key,
     save_artifact, set_session_state,
 )
-from tools.schemas import AgentSessionState
-from tools.modeling import evaluate_model, train_model
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.modeling import evaluate_model, train_model
 
 
 async def _seed(mock_ctx, df: pd.DataFrame) -> None:

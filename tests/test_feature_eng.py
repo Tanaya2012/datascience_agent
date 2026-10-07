@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
     get_session_state,
     load_artifact,
@@ -22,8 +22,8 @@ from tools.artifact_utils import (
     save_artifact,
     set_session_state,
 )
-from tools.schemas import AgentSessionState
-from tools.feature_eng import (
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.feature_eng import (
     bin_columns,
     encode_features,
     engineer_datetime_features,

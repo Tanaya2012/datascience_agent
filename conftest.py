@@ -5,12 +5,47 @@ Shared pytest fixtures for the datascience_agent test suite.
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
-import tools.artifact_utils as au
+import datascience_agent.tools.artifact_utils as au
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_WORKER_VENV = _PROJECT_ROOT / ".worker-venv"
+
+
+def _is_project_file(path: str | None) -> bool:
+    # Pseudo-paths such as "<frozen ...>" or "<string>" are relative; resolving them
+    # would anchor them to the cwd (the project) and report false positives.
+    if not path or not Path(path).is_absolute():
+        return False
+    p = Path(path).resolve()
+    return p.is_relative_to(_PROJECT_ROOT) and not p.is_relative_to(_WORKER_VENV)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _one_module_name_per_file():
+    """Every module loaded from this project must be loaded as ``datascience_agent.*``.
+
+    Importing the same file under a second name (e.g. a flat top-level ``tools``)
+    creates a second, *distinct* module: separate classes, separate globals, and a
+    monkeypatch on one copy silently misses the other (D31). ``python -m pytest`` puts
+    the project dir on ``sys.path``, so nothing stops such an import except this check.
+    It runs once, after the whole session, against everything the suite imported.
+    """
+    yield
+    stray = sorted(
+        name for name, mod in list(sys.modules.items())
+        if _is_project_file(getattr(mod, "__file__", None))
+        and name != "datascience_agent" and not name.startswith("datascience_agent.")
+    )
+    assert not stray, (
+        "Project modules were imported under a non-package name, creating duplicate "
+        f"module copies: {stray}. Import them as datascience_agent.<...> instead (D31)."
+    )
 
 
 @pytest.fixture(autouse=True)

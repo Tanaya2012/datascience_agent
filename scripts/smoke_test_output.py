@@ -2,7 +2,7 @@
 Smoke test for the generate_output disk-path fix: the agent should save real
 files and report their absolute paths (the behavior that previously failed).
 
-Run from /Users/tushar/interests:
+Run from any directory (after `pip install -e .`):
   conda run -n dsagent python -m datascience_agent.scripts.smoke_test_output
 """
 

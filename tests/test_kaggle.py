@@ -13,8 +13,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import kaggle_tool
-from tools.kaggle_tool import download_kaggle, search_kaggle
+from datascience_agent.tools import kaggle_tool
+from datascience_agent.tools.kaggle_tool import download_kaggle, search_kaggle
 
 
 class _FakeApi:

@@ -15,25 +15,28 @@ cover — the two contract rules plus audit-trail integrity:
   INV-LOSS    every dropped row / newly-nulled cell must be reported in the result
               or log ("never silently lose data").
 
-Run:  conda run -n dsagent python -m datascience_agent.scripts.fuzz_tools [N]
+Run (from any directory, after `pip install -e .`):
+  conda run -n dsagent python -m datascience_agent.scripts.fuzz_tools [N] [--out DIR]
 Findings (with a reproducible seed) are printed and written to
-scratchpad/fuzz_findings.json. Confirmed bugs get promoted to regression tests.
+<DIR>/fuzz_findings.json — by default a fresh temp dir per run, whose path is printed.
+Confirmed bugs get promoted to regression tests.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import random
-import sys
+import tempfile
 import traceback
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-import tools.artifact_utils as au
-from tools.artifact_utils import (
+import datascience_agent.tools.artifact_utils as au
+from datascience_agent.tools.artifact_utils import (
     compute_checksum,
     df_to_parquet_bytes,
     get_session_state,
@@ -42,19 +45,19 @@ from tools.artifact_utils import (
     save_artifact,
     set_session_state,
 )
-from tools.schemas import AgentSessionState
-from tools.cleaning.standardizer import standardize_formats
-from tools.cleaning.missing_handler import handle_missing_values
-from tools.cleaning.deduplicator import deduplicate_dataset
-from tools.feature_eng import (
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.cleaning.standardizer import standardize_formats
+from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
+from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
+from datascience_agent.tools.feature_eng import (
     encode_features, scale_features, bin_columns, engineer_datetime_features,
 )
-from tools.data_profiler import profile_dataset
-from tools.eda import explore_dataset
-from tools.stats import statistical_test
-from tools.validator import validate_dataset
-from tools.visualization import plot_dataset
-from tools.modeling import train_model, evaluate_model
+from datascience_agent.tools.data_profiler import profile_dataset
+from datascience_agent.tools.eda import explore_dataset
+from datascience_agent.tools.stats import statistical_test
+from datascience_agent.tools.validator import validate_dataset
+from datascience_agent.tools.visualization import plot_dataset
+from datascience_agent.tools.modeling import train_model, evaluate_model
 
 
 # Modeling tools are read-only wrt the data: the fitted model is a side artifact.
@@ -403,7 +406,7 @@ async def check_call(ctx, step, pre_df, pre_key, result):
 
 
 def _df(raw):
-    from tools.artifact_utils import parquet_bytes_to_df
+    from datascience_agent.tools.artifact_utils import parquet_bytes_to_df
     return parquet_bytes_to_df(raw)
 
 
@@ -450,9 +453,17 @@ async def run_one(seed: int, base_dir: Path):
 
 
 async def main():
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 400
-    base = Path("/private/tmp/claude-501/-Users-tushar-interests-datascience-agent/"
-                "735ec4f5-1cde-4bc3-88b2-07d8a842ffc4/scratchpad/fuzz_artifacts")
+    ap = argparse.ArgumentParser(description="Invariant fuzzer for the tool layer.")
+    ap.add_argument("n", nargs="?", type=int, default=400,
+                    help="number of seeds to run (default 400)")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="directory for per-seed artifacts and fuzz_findings.json "
+                         "(default: a fresh temp dir per run)")
+    args = ap.parse_args()
+    n = args.n
+    # A fresh directory per run by default, so concurrent runs never share files.
+    out_dir = args.out or Path(tempfile.mkdtemp(prefix="ds_fuzz_"))
+    base = out_dir / "fuzz_artifacts"
     base.mkdir(parents=True, exist_ok=True)
     reports = []
     for seed in range(n):
@@ -473,8 +484,7 @@ async def main():
                                      "example": f["issue"]})
             summary[key]["count"] += 1
 
-    out = Path("/private/tmp/claude-501/-Users-tushar-interests-datascience-agent/"
-               "735ec4f5-1cde-4bc3-88b2-07d8a842ffc4/scratchpad/fuzz_findings.json")
+    out = out_dir / "fuzz_findings.json"
     out.write_text(json.dumps({"n_runs": n, "n_flagged_runs": len(reports),
                                "summary": summary, "reports": reports[:40]}, indent=2,
                               default=str))

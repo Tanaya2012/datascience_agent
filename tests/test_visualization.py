@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import df_to_parquet_bytes, load_artifact, make_artifact_key, save_artifact
-from tools.visualization import plot_dataset
+from datascience_agent.tools.artifact_utils import df_to_parquet_bytes, load_artifact, make_artifact_key, save_artifact
+from datascience_agent.tools.visualization import plot_dataset
 
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -102,8 +102,8 @@ async def test_missing_required_arg_errors(mock_ctx, viz_df):
 
 @pytest.mark.asyncio
 async def test_plot_defaults_to_current_dataset_key(mock_ctx, viz_df):
-    from tools.artifact_utils import set_session_state
-    from tools.schemas import AgentSessionState
+    from datascience_agent.tools.artifact_utils import set_session_state
+    from datascience_agent.tools.schemas import AgentSessionState
 
     key = await _seed(mock_ctx, viz_df)
     set_session_state(AgentSessionState(current_dataset_key=key), mock_ctx)

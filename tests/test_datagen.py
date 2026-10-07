@@ -24,8 +24,8 @@ import json
 import pandas as pd
 import pytest
 
-from scripts.datagen import SCENARIOS, verify_truth, write_scenario
-from scripts.datagen._common import FACT_KINDS, MEASURERS
+from datascience_agent.scripts.datagen import SCENARIOS, verify_truth, write_scenario
+from datascience_agent.scripts.datagen._common import FACT_KINDS, MEASURERS
 
 # Generating every scenario fits models, so build each one once per session.
 pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")

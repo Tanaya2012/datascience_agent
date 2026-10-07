@@ -17,7 +17,7 @@ Produces an intentionally *messy* e-commerce sales dataset that hits every tool:
 
 Dependency-free (stdlib only) and reproducible via --seed.
 
-Usage (from /Users/tushar/interests):
+Usage (from any directory, after `pip install -e .`):
   conda run -n dsagent python -m datascience_agent.scripts.generate_dummy_data \
       --rows 300 --seed 42 --messiness medium --secondary
 

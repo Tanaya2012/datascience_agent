@@ -23,10 +23,13 @@ for current state, milestones, rationale, and target design.
 
 ## Setup from scratch (fresh clone)
 
+All commands run **from the project dir** (this folder).
+
 ```bash
-# 1. Agent runtime env
+# 1. Agent runtime env, plus the package itself (editable, so edits apply live)
 conda create -n dsagent python=3.12 -y
 conda run -n dsagent pip install -r requirements.txt
+conda run -n dsagent pip install -e .
 
 # 2. Code-execution worker venv (sandbox for run_python)
 WORKER_BASE_PYTHON=$(conda run -n dsagent which python) bash scripts/bootstrap_worker.sh
@@ -34,19 +37,19 @@ WORKER_BASE_PYTHON=$(conda run -n dsagent which python) bash scripts/bootstrap_w
 # 3. Config — copy the template and set your key(s)
 cp .env.example .env        # then edit: GOOGLE_API_KEY (or another provider's key)
 
-# 4. Verify — run tests FROM THE PROJECT DIR
+# 4. Verify
 conda run -n dsagent python -m pytest -q
 
-# 5. Run — FROM THE PARENT DIR (/Users/tushar/interests)
-conda run -n dsagent adk web datascience_agent      # browser UI
-# or:  adk run datascience_agent                     # terminal
-# or:  python -m datascience_agent.scripts.chat      # simple REPL
+# 5. Run
+conda run -n dsagent adk web .                       # browser UI
+# or:  conda run -n dsagent adk run .                # terminal
+# or:  conda run -n dsagent python -m datascience_agent.scripts.chat   # simple REPL
 ```
 
 Optional extras:
 - **Resumable sessions:** append both
-  `--session_service_uri "sqlite+aiosqlite:///$(pwd)/datascience_agent/sessions/sessions.db"`
-  and `--artifact_service_uri "file://$(pwd)/datascience_agent/artifacts"`
+  `--session_service_uri "sqlite+aiosqlite:///$(pwd)/sessions/sessions.db"`
+  and `--artifact_service_uri "file://$(pwd)/artifacts"`
   to `adk web`/`adk run` (note the async-SQLite driver). Persisting the session without the
   artifact store resumes state that points at datasets the in-memory store already dropped.
   The `chat.py` REPL persists both by default.
@@ -61,9 +64,10 @@ Generate a messy sample dataset to try it on:
 conda run -n dsagent python -m datascience_agent.scripts.generate_dummy_data --secondary
 ```
 
-> Two cwd gotchas baked into the commands above: **tests** run from the project
-> dir (the parent has sibling repos that break collection); **`adk`** runs from
-> the parent dir (it takes the agent folder as an argument).
+> Why `adk web .` works: given a folder containing `agent.py`, ADK runs in
+> single-agent mode and names the agent after the folder — `datascience_agent`.
+> The repo root *is* that package; `pyproject.toml` maps it explicitly so the
+> editable install exposes only `datascience_agent.*` (D31).
 
 ## Status
 

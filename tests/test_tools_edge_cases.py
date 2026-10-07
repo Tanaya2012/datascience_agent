@@ -20,12 +20,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     ARTIFACTS_DIR,
     df_to_parquet_bytes,
     parquet_bytes_to_df,
 )
-from tools.schemas import AgentSessionState, DatasetVersion
+from datascience_agent.tools.schemas import AgentSessionState, DatasetVersion
 from datetime import datetime
 
 
@@ -43,7 +43,7 @@ class _MockCtxWithState:
     """MockCtx pre-seeded with an AgentSessionState."""
 
     def __init__(self, state: AgentSessionState):
-        from tools.artifact_utils import SESSION_STATE_KEY
+        from datascience_agent.tools.artifact_utils import SESSION_STATE_KEY
         self.state = {SESSION_STATE_KEY: state.model_dump(mode="json")}
 
     async def save_artifact(self, **_):
@@ -59,7 +59,7 @@ class _MockCtxWithState:
 
 class TestDatasetLoaderEdgeCases:
     async def test_load_empty_csv(self, empty_csv):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("local", str(empty_csv))
 
@@ -68,7 +68,7 @@ class TestDatasetLoaderEdgeCases:
         assert result["shape_after"]["cols"] == 3
 
     async def test_load_single_row_csv(self, single_row_csv):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         result = await dataset_loader("local", str(single_row_csv))
 
@@ -77,8 +77,8 @@ class TestDatasetLoaderEdgeCases:
 
     async def test_secondary_state_registered(self, csv_file, secondary_csv, mock_ctx):
         """Verify that loading as secondary actually registers the dataset in session state."""
-        from tools.dataset_loader import dataset_loader
-        from tools.artifact_utils import get_session_state
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.artifact_utils import get_session_state
 
         await dataset_loader(
             "local", str(secondary_csv),
@@ -96,8 +96,8 @@ class TestDatasetLoaderEdgeCases:
 
 class TestDataProfilerEdgeCases:
     async def test_profile_empty_dataset(self, empty_csv):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(empty_csv))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -106,8 +106,8 @@ class TestDataProfilerEdgeCases:
         assert result["profile"]["shape"][0] == 0  # 0 rows
 
     async def test_profile_single_row(self, single_row_csv):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(single_row_csv))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -116,8 +116,8 @@ class TestDataProfilerEdgeCases:
         assert result["profile"]["shape"][0] == 1
 
     async def test_profile_all_null_column(self, all_null_col_csv):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         load_r = await dataset_loader("local", str(all_null_col_csv))
         result = await profile_dataset(load_r["output_artifact_key"])
@@ -129,8 +129,8 @@ class TestDataProfilerEdgeCases:
         assert value_profile["missing_count"] == 3  # all 3 rows are null
 
     async def test_profile_duplicate_count_accuracy(self, csv_file):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         # sample_df has 1 exact duplicate row (Alice, 30.0, 50000.0, 2020-01-15)
         load_r = await dataset_loader("local", str(csv_file))
@@ -139,8 +139,8 @@ class TestDataProfilerEdgeCases:
         assert result["profile"]["duplicate_count"] >= 1
 
     async def test_profile_outlier_detection(self, tmp_path):
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
 
         # Salary column with one extreme outlier (10× others)
         df = pd.DataFrame({"salary": [50_000, 52_000, 49_000, 51_000, 500_000]})
@@ -162,8 +162,8 @@ class TestDataProfilerEdgeCases:
 class TestMissingHandlerEdgeCases:
     async def test_drop_threshold_zero_drops_all_cols_with_any_missing(self, csv_file):
         """threshold=0.0 → drop every column that has ≥0% missing (i.e., any missing at all)."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -180,8 +180,8 @@ class TestMissingHandlerEdgeCases:
 
     async def test_drop_threshold_one_keeps_partial_null_columns(self, csv_file):
         """threshold=1.0 → only drop columns that are 100% null; partial-null columns stay."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await handle_missing_values(
@@ -199,8 +199,8 @@ class TestMissingHandlerEdgeCases:
     async def test_all_null_column_drops_with_threshold(self, all_null_col_csv):
         """A 100%-null column (fraction=1.0) should be dropped when threshold < 1.0.
         The implementation uses strict `>` comparison, so threshold must be < 1.0."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(all_null_col_csv))
         result = await handle_missing_values(
@@ -215,8 +215,8 @@ class TestMissingHandlerEdgeCases:
     async def test_mode_on_all_null_column_no_error(self, all_null_col_csv):
         """mode imputation on a column with no data should not crash; column stays null.
         drop_threshold > 1.0 prevents the column from being auto-dropped first."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(all_null_col_csv))
         result = await handle_missing_values(
@@ -233,8 +233,8 @@ class TestMissingHandlerEdgeCases:
     async def test_ffill_all_null_column_no_error(self, all_null_col_csv):
         """ffill on all-null column should not crash; column stays null.
         drop_threshold > 1.0 prevents the column from being auto-dropped first."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         load_r = await dataset_loader("local", str(all_null_col_csv))
         result = await handle_missing_values(
@@ -250,8 +250,8 @@ class TestMissingHandlerEdgeCases:
     async def test_drop_row_multiple_columns_removes_each_row_once(self, tmp_path):
         """A row missing in two strategy columns should be removed only once.
         drop_threshold=0.9 prevents column 'b' (67% null) from being auto-dropped."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
         df = pd.DataFrame({"a": [1.0, None, 3.0], "b": [None, None, 6.0]})
         p = tmp_path / "multi_null.csv"
@@ -277,8 +277,8 @@ class TestMissingHandlerEdgeCases:
 class TestStandardizerEdgeCases:
     async def test_snake_case_already_snake_idempotent(self, tmp_path):
         """Headers already in snake_case → no renames, cells_modified=0."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"first_name": ["a"], "last_name": ["b"], "age_years": [1]})
         p = tmp_path / "already_snake.csv"
@@ -293,8 +293,8 @@ class TestStandardizerEdgeCases:
 
     async def test_date_parsing_mixed_formats(self, tmp_path):
         """Column with both ISO and US date formats should parse to datetime."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"event_date": ["2023-01-15", "01/22/2023", "03/05/2023"]})
         p = tmp_path / "mixed_dates.csv"
@@ -310,8 +310,8 @@ class TestStandardizerEdgeCases:
 
     async def test_all_null_column_unchanged_by_standardizer(self, all_null_col_csv):
         """An all-null column should not cause errors and should remain null."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         load_r = await dataset_loader("local", str(all_null_col_csv))
         result = await standardize_formats(
@@ -327,8 +327,8 @@ class TestStandardizerEdgeCases:
 
     async def test_numeric_coercion_on_already_numeric_column(self, tmp_path):
         """parse_numerics=True on a column already stored as float → cells_modified=0."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"score": [1.0, 2.0, 3.0]})
         p = tmp_path / "already_numeric.csv"
@@ -345,8 +345,8 @@ class TestStandardizerEdgeCases:
 
     async def test_currency_with_no_decimal(self, tmp_path):
         """Currency strings without decimal places should parse correctly."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
 
         df = pd.DataFrame({"price": ["$500", "$1,000", "$250"]})
         p = tmp_path / "nodecimal.csv"
@@ -369,8 +369,8 @@ class TestStandardizerEdgeCases:
 class TestDeduplicatorEdgeCases:
     async def test_exact_dedup_all_rows_identical(self, tmp_path):
         """5 identical rows → 1 row remains with dedup_keep='first'."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"a": [1, 1, 1, 1, 1], "b": ["x", "x", "x", "x", "x"]})
         p = tmp_path / "alldup.csv"
@@ -384,8 +384,8 @@ class TestDeduplicatorEdgeCases:
 
     async def test_fuzzy_dedup_jaro_winkler(self, tmp_path):
         """jaro_winkler algorithm should identify near-duplicate names."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"name": ["Jonathan", "Johnathan", "Bob"]})
         p = tmp_path / "jaro.csv"
@@ -405,8 +405,8 @@ class TestDeduplicatorEdgeCases:
 
     async def test_fuzzy_dedup_partial_ratio(self, tmp_path):
         """partial_ratio algorithm should work without errors."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"name": ["Alice Smith", "Smith Alice", "Bob Jones"]})
         p = tmp_path / "partial.csv"
@@ -425,8 +425,8 @@ class TestDeduplicatorEdgeCases:
 
     async def test_rows_removed_equals_exact_plus_fuzzy(self, tmp_path):
         """rows_removed should equal exact_duplicates_removed + fuzzy_duplicates_removed."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         df = pd.DataFrame({"name": ["Alice", "Alice", "Alice Smith", "Alice Smyth", "Bob"]})
         p = tmp_path / "mixed_dup.csv"
@@ -447,8 +447,8 @@ class TestDeduplicatorEdgeCases:
 
     async def test_deduplicate_single_row(self, single_row_csv):
         """Single-row dataset has no duplicates to remove."""
-        from tools.dataset_loader import dataset_loader
-        from tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
 
         load_r = await dataset_loader("local", str(single_row_csv))
         result = await deduplicate_dataset(load_r["output_artifact_key"], exact_dedup=True)
@@ -464,7 +464,7 @@ class TestDeduplicatorEdgeCases:
 
 class TestMergeEdgeCases:
     async def _load_two(self, csv_file, secondary_csv, ctx):
-        from tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.dataset_loader import dataset_loader
 
         r1 = await dataset_loader("local", str(csv_file), tool_context=ctx)
         await dataset_loader(
@@ -476,7 +476,7 @@ class TestMergeEdgeCases:
 
     async def test_right_join_keeps_all_secondary_rows(self, csv_file, secondary_csv, mock_ctx):
         """Right join: all rows from secondary must appear in output."""
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(
@@ -490,7 +490,7 @@ class TestMergeEdgeCases:
 
     async def test_outer_join_keeps_all_rows_with_nulls(self, csv_file, secondary_csv, mock_ctx):
         """Outer join: output must have at least as many rows as both sides combined."""
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary_key = await self._load_two(csv_file, secondary_csv, mock_ctx)
         result = await merge_datasets(
@@ -504,8 +504,8 @@ class TestMergeEdgeCases:
 
     async def test_merge_no_matching_keys_left_join(self, tmp_path, mock_ctx):
         """Left join with no key overlap → all primary rows kept, secondary cols all NaN."""
-        from tools.dataset_loader import dataset_loader
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary = pd.DataFrame({"id": [1, 2, 3], "val": ["a", "b", "c"]})
         secondary = pd.DataFrame({"id": [10, 20], "label": ["x", "y"]})
@@ -532,8 +532,8 @@ class TestMergeEdgeCases:
 
     async def test_merge_perfect_match_rate(self, tmp_path, mock_ctx):
         """When all primary keys match secondary, match_rate should be 1.0."""
-        from tools.dataset_loader import dataset_loader
-        from tools.merge_tool import merge_datasets
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.merge_tool import merge_datasets
 
         primary = pd.DataFrame({"id": [1, 2, 3], "val": ["a", "b", "c"]})
         secondary = pd.DataFrame({"id": [1, 2, 3], "label": ["x", "y", "z"]})
@@ -564,8 +564,8 @@ class TestMergeEdgeCases:
 class TestValidatorEdgeCases:
     async def test_constant_column_detected(self, tmp_path):
         """A column with all identical values should be flagged as an issue."""
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         df = pd.DataFrame({"id": [1, 2, 3, 4, 5], "status": ["active"] * 5})
         p = tmp_path / "constant.csv"
@@ -579,8 +579,8 @@ class TestValidatorEdgeCases:
 
     async def test_quality_score_not_negative(self, tmp_path):
         """Massive missingness should clamp quality_score to 0.0, not go negative."""
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         # 4 columns all 80% null → enormous penalty
         df = pd.DataFrame(
@@ -601,8 +601,8 @@ class TestValidatorEdgeCases:
 
     async def test_quality_score_100_for_perfect_data(self, tmp_path):
         """No missing, no duplicates, no anomalies → quality_score == 100."""
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         df = pd.DataFrame(
             {"id": range(10), "name": [f"Person_{i}" for i in range(10)], "value": range(10)}
@@ -618,8 +618,8 @@ class TestValidatorEdgeCases:
 
     async def test_validate_single_row(self, single_row_csv):
         """Single-row dataset should validate successfully with a high score."""
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(single_row_csv))
         result = await validate_dataset(load_r["output_artifact_key"])
@@ -629,8 +629,8 @@ class TestValidatorEdgeCases:
 
     async def test_validate_empty_dataset(self, empty_csv):
         """Empty dataset (0 rows) should not crash the validator."""
-        from tools.dataset_loader import dataset_loader
-        from tools.validator import validate_dataset
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.validator import validate_dataset
 
         load_r = await dataset_loader("local", str(empty_csv))
         result = await validate_dataset(load_r["output_artifact_key"])
@@ -645,8 +645,8 @@ class TestValidatorEdgeCases:
 class TestOutputGeneratorEdgeCases:
     async def test_csv_export_preserves_nan_as_empty_cell(self, tmp_path):
         """NaN values in the DataFrame should appear as empty cells in the CSV export."""
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         df = pd.DataFrame({"a": [1.0, None, 3.0], "b": ["x", "y", None]})
         p = tmp_path / "withnan.csv"
@@ -662,8 +662,8 @@ class TestOutputGeneratorEdgeCases:
 
     async def test_output_with_empty_dataset(self, empty_csv):
         """Generating output on a 0-row dataset should succeed."""
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(empty_csv))
         result = await generate_output(load_r["output_artifact_key"])
@@ -675,8 +675,8 @@ class TestOutputGeneratorEdgeCases:
 
     async def test_log_json_is_list_after_no_cleaning_steps(self, csv_file):
         """When no cleaning tools ran, the logs JSON should still be a valid (possibly empty) list."""
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
@@ -687,8 +687,8 @@ class TestOutputGeneratorEdgeCases:
 
     async def test_report_contains_timestamp(self, csv_file):
         """Quality report markdown should include a UTC timestamp."""
-        from tools.dataset_loader import dataset_loader
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.output_generator import generate_output
 
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
@@ -712,13 +712,13 @@ class TestSalesPipeline:
         - Missing values in Region and Sale Amount
         - Numeric string (Units Sold) → integer
         """
-        from tools.dataset_loader import dataset_loader
-        from tools.data_profiler import profile_dataset
-        from tools.cleaning.standardizer import standardize_formats
-        from tools.cleaning.missing_handler import handle_missing_values
-        from tools.cleaning.deduplicator import deduplicate_dataset
-        from tools.validator import validate_dataset
-        from tools.output_generator import generate_output
+        from datascience_agent.tools.dataset_loader import dataset_loader
+        from datascience_agent.tools.data_profiler import profile_dataset
+        from datascience_agent.tools.cleaning.standardizer import standardize_formats
+        from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
+        from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
+        from datascience_agent.tools.validator import validate_dataset
+        from datascience_agent.tools.output_generator import generate_output
 
         ctx = mock_ctx
 

@@ -12,15 +12,15 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes, parquet_bytes_to_df, get_session_state, load_artifact,
     make_artifact_key, save_artifact, set_session_state,
 )
-from tools.schemas import AgentSessionState
-from tools.cleaning.standardizer import standardize_formats
-from tools.cleaning.missing_handler import handle_missing_values
-from tools.cleaning.deduplicator import deduplicate_dataset
-from tools.feature_eng import encode_features, scale_features, bin_columns
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.cleaning.standardizer import standardize_formats
+from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
+from datascience_agent.tools.cleaning.deduplicator import deduplicate_dataset
+from datascience_agent.tools.feature_eng import encode_features, scale_features, bin_columns
 
 
 async def _seed(mock_ctx, df: pd.DataFrame) -> None:

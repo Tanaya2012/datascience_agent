@@ -3,7 +3,7 @@ M1 smoke test: drive the agent to use run_python for a derived column + commit,
 through the real LLM + ADK Runner. Validates the code-execution escape hatch
 end-to-end (acceptance: derive `margin = revenue - cost`, commit a new version).
 
-Run from /Users/tushar/interests:
+Run from any directory (after `pip install -e .`):
   conda run -n dsagent python -m datascience_agent.scripts.smoke_test_m1
 """
 

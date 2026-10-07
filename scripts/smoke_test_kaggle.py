@@ -4,7 +4,7 @@ verifies real auth + search + download against Kaggle.
 
 Needs credentials (~/.kaggle/kaggle.json or KAGGLE_USERNAME/KAGGLE_KEY).
 
-Run from /Users/tushar/interests:
+Run from any directory (after `pip install -e .`):
   conda run -n dsagent python -m datascience_agent.scripts.smoke_test_kaggle
 """
 

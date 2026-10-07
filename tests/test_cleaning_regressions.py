@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tools.artifact_utils import (
+from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
     get_session_state,
     load_artifact,
@@ -24,9 +24,9 @@ from tools.artifact_utils import (
     save_artifact,
     set_session_state,
 )
-from tools.schemas import AgentSessionState
-from tools.cleaning.standardizer import standardize_formats
-from tools.cleaning.missing_handler import handle_missing_values
+from datascience_agent.tools.schemas import AgentSessionState
+from datascience_agent.tools.cleaning.standardizer import standardize_formats
+from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
 
 # Several genuine date formats — like real-world "Order Date" columns.
 _DATE_FORMATS = ["2023-01-15", "21-May-2023", "December 29, 2024", "May 06, 2024", "16-Jul-2024", "2024-03-10"]

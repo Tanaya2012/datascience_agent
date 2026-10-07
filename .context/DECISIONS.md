@@ -900,3 +900,66 @@ session a distinct step name isolated the actual race and produced the table abo
 confirmed **failing against the pre-fix code**. Full suite **477 passed, 6 skipped**.
 **Note:** `plot_dir` was already per-call unique — the original author had solved this for
 plots and not for the parquet exchange.
+
+### 2026-10-01 — D31: audit F7 — one import name per module; the repo becomes an installable package
+**Context:** fifth finding from the 2026-09-03 health audit, done first in the "scaffolding
+slice" because it decides where F5's dependencies and F10's tool config will live.
+**The bug:** `pytest.ini` set `pythonpath = . ..`, so every module had two names — `tools.x`
+(the tests' and the fuzzer's flat imports) and `datascience_agent.tools.x` (what the agent's
+own relative imports resolve to). Verified in one pytest process: distinct module objects, two `TaskType`
+classes, `isinstance` false across them, a monkeypatch on one copy invisible to the other —
+and, beyond what the audit listed, **two separate `_KERNELS` registries**, so D30's
+per-session kernel state could split across copies. The fuzzer's documented command failed
+outright (`ModuleNotFoundError: No module named 'tools'`) and wrote its report into a dead
+session's scratchpad.
+**Audit corrections:** `test_ingestion.py` *does* mix styles (harmlessly — state crosses as
+JSON); and the conversion was 277 import lines across 17 files, not 49.
+**Three facts decided the layout:**
+1. **ADK never needs the package installed.** `adk web <dir>` on a folder containing
+   `agent.py` runs in *single-agent mode*: agent name = folder name, and ADK inserts the
+   parent into `sys.path` itself. So the folder must stay named `datascience_agent`, and
+   `adk web .` / `adk run .` work from the project dir (verified: `/list-apps` returned
+   `["datascience_agent"]`; `adk run .` loaded `data_science_agent`). The documented "run
+   adk from the parent dir" step was never necessary.
+2. **Path config cannot fix the double import.** With `pythonpath` cleared, `import tools`
+   still resolved: `python -m pytest` puts the cwd (the project root) on `sys.path`. The fix
+   is converting the imports, plus guards that keep them converted.
+3. **Root-as-package installs fine — with an explicit mapping.** `package-dir =
+   {"datascience_agent" = "."}` plus a hand-written package list. Automatic discovery is a
+   trap here: `find_packages(".")` returns `tools`, `configs`, `scripts`, `sub_agents` as
+   *top-level* packages, which would install the duplicate permanently and squat generic
+   names. Verified on a scratch copy in a throwaway venv before touching `dsagent`.
+**Decision (option A):** `pyproject.toml` with packaging only (dependencies move in with F5,
+so they are moved once); `pip install -e .` into `dsagent` (user-approved environment change,
+reversible with `pip uninstall datascience-agent`); every flat import in tests, `conftest.py`
+and the fuzzer converted to `datascience_agent.*`, including the one *string* target
+(`monkeypatch.setattr("…output_generator._DEFAULT_OUTPUTS_ROOT")`), which a blind regex
+would have missed and which would have silently patched the wrong copy; `pythonpath` dropped.
+**Rejected:** B (convert imports, no packaging — fixes the duplicate but keeps the parent-dir
+dependence and gives F5/F6/F10 no config home); C (`src/` layout — shifts every
+`Path(__file__).parents[N]` anchor: worker venv, sessions DB, artifacts, Kaggle dir; no gain
+over A).
+**Two guards, because a regex alone is not enough:**
+- *Runtime invariant* (`conftest._one_module_name_per_file`, session-scoped): after the run,
+  every module loaded from a project file must be named `datascience_agent.*`. Catches what
+  no source scan can — `importlib.import_module("tools" + ".x")`, string targets.
+- *Static scan* (`tests/test_import_hygiene.py`): file:line report over all project sources,
+  including scripts the suite never imports; plus a check that pyproject's package list
+  matches the `__init__.py` dirs on disk (the price of the explicit list).
+Both proven with a temporary probe: the runtime check caught 4 duplicate modules, including
+a dynamic import invisible to the regex; the static scan caught the string target.
+**Fuzzer:** `--out DIR`, defaulting to a fresh temp dir per run (no shared files between
+concurrent runs — the D30 lesson). Documented command now works from the project, parent,
+and an unrelated directory; **120 seeds, 0 findings** — matching the audit's baseline.
+**Docs:** README / CAPABILITIES / STATUS / 8 script docstrings / datagen README now say
+"from the project dir" (`adk web .`); setup gains `pip install -e .`.
+**Verified:** **479 passed, 6 skipped** (477 + 2 hygiene tests); from a neutral directory the
+install exposes only `datascience_agent.*`.
+**Found during F7, NOT fixed (it is F8, and it is my D28 miss):** `conftest.clean_artifacts`
+`rmtree`s `<project>/artifacts/` before every test — the very directory D28 chose as
+`FileArtifactService`'s root, and where Kaggle downloads land. A test run would delete every
+persisted `chat.py` artifact, recreating F2. Latent: no `sessions.db` exists and `artifacts/`
+is absent, so nothing has been lost. Fix next: redirect `ARTIFACTS_DIR` to `tmp_path` in the
+fixture instead of deleting the real directory.
+**Tooling note:** `conda run` does not forward stdin, so `conda run python - <<EOF` silently
+runs nothing — write probe scripts to a file instead.

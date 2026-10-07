@@ -19,16 +19,16 @@ from __future__ import annotations
 
 import pytest
 
-from tools.artifact_utils import get_session_state
-from tools.dataset_loader import dataset_loader
-from tools.data_profiler import profile_dataset
-from tools.eda import explore_dataset
-from tools.visualization import plot_dataset
-from tools.feature_eng import encode_features
-from tools.stats import statistical_test
-from tools.cleaning.missing_handler import handle_missing_values
-from tools.validator import validate_dataset
-from tools.output_generator import generate_output
+from datascience_agent.tools.artifact_utils import get_session_state
+from datascience_agent.tools.dataset_loader import dataset_loader
+from datascience_agent.tools.data_profiler import profile_dataset
+from datascience_agent.tools.eda import explore_dataset
+from datascience_agent.tools.visualization import plot_dataset
+from datascience_agent.tools.feature_eng import encode_features
+from datascience_agent.tools.stats import statistical_test
+from datascience_agent.tools.cleaning.missing_handler import handle_missing_values
+from datascience_agent.tools.validator import validate_dataset
+from datascience_agent.tools.output_generator import generate_output
 
 
 def _current_key(mock_ctx) -> str | None:
