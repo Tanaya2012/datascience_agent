@@ -47,7 +47,11 @@ if TYPE_CHECKING:
     # Avoid hard dependency on google-adk at import time for local dev/testing
     from google.adk.tools import ToolContext
 
-ARTIFACTS_DIR = Path("artifacts")
+# Local fallback store, anchored to the project like the Kaggle dir and the persistent
+# FileArtifactService root. It used to be cwd-relative (`Path("artifacts")`), so runs
+# launched from the parent dir scattered artifacts into /Users/tushar/interests/artifacts
+# (D32). Read it as `artifact_utils.ARTIFACTS_DIR` at call time — tests redirect it.
+ARTIFACTS_DIR = Path(__file__).resolve().parent.parent / "artifacts"
 SESSION_STATE_KEY = "pipeline_state"
 
 

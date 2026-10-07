@@ -4,7 +4,7 @@ Shared pytest fixtures for the datascience_agent test suite.
 
 from __future__ import annotations
 
-import shutil
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import datascience_agent.tools.artifact_utils as au
+from datascience_agent.tools import kaggle_tool, output_generator
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
 _WORKER_VENV = _PROJECT_ROOT / ".worker-venv"
@@ -49,13 +50,50 @@ def _one_module_name_per_file():
 
 
 @pytest.fixture(autouse=True)
-def clean_artifacts():
-    """Remove the local artifacts directory before each test to ensure isolation."""
-    if au.ARTIFACTS_DIR.exists():
-        shutil.rmtree(au.ARTIFACTS_DIR)
+def _isolate_local_storage(tmp_path, monkeypatch):
+    """Point every on-disk store the code under test writes to at a per-test temp dir.
+
+    The fixture this replaced *deleted* the real ``artifacts/`` before every test — the
+    directory FileArtifactService persists ``chat.py`` sessions into (D28) and Kaggle
+    downloads land in — so a test run wiped them (D32). Tests must never touch the
+    project tree; ``_project_tree_untouched`` enforces that.
+
+    Read these paths at call time (``artifact_utils.ARTIFACTS_DIR``), never via
+    ``from … import ARTIFACTS_DIR`` — that binds the original path and bypasses the patch.
+    """
+    monkeypatch.setattr(au, "ARTIFACTS_DIR", tmp_path / "artifacts")
+    monkeypatch.setattr(output_generator, "_DEFAULT_OUTPUTS_ROOT", tmp_path / "outputs")
+    monkeypatch.setattr(kaggle_tool, "_KAGGLE_DIR", tmp_path / "kaggle")
+
+
+def _project_files() -> set[str]:
+    """Every file in the project tree, minus dot-dirs/dot-files (VCS, venvs, caches,
+    editor swap files) and bytecode."""
+    files = set()
+    for dirpath, dirnames, filenames in os.walk(_PROJECT_ROOT):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d != "__pycache__"]
+        for f in filenames:
+            if not f.startswith(".") and not f.endswith("~"):
+                files.add(os.path.relpath(os.path.join(dirpath, f), _PROJECT_ROOT))
+    return files
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _project_tree_untouched():
+    """The suite must neither create nor delete files in the project tree (D32).
+
+    Catches both failure modes F8 found: litter (``outputs/run_*`` piling up) and
+    destruction (a fixture wiping ``artifacts/``). If you were running the agent in
+    parallel and it wrote an export, that file will be listed here too.
+    """
+    before = _project_files()
     yield
-    # Leave artifacts in place after the test (easier debugging).
-    # They will be wiped at the start of the next test.
+    after = _project_files()
+    created, deleted = sorted(after - before), sorted(before - after)
+    assert not created and not deleted, (
+        "The test session changed the project tree (D32) — "
+        f"created: {created[:20]}, deleted: {deleted[:20]}"
+    )
 
 
 @pytest.fixture()
@@ -146,7 +184,8 @@ def mock_ctx(tmp_path):
 
     - Stores session state in an in-memory dict.
     - Delegates artifact I/O to the local filesystem fallback by always raising,
-      so artifact_utils falls through to ARTIFACTS_DIR.
+      so artifact_utils falls through to ARTIFACTS_DIR — a per-test temp dir
+      (see `_isolate_local_storage`).
     """
 
     class _MockCtx:

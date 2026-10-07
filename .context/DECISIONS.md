@@ -963,3 +963,52 @@ is absent, so nothing has been lost. Fix next: redirect `ARTIFACTS_DIR` to `tmp_
 fixture instead of deleting the real directory.
 **Tooling note:** `conda run` does not forward stdin, so `conda run python - <<EOF` silently
 runs nothing — write probe scripts to a file instead.
+
+### 2026-10-07 — D32: audit F8 — the test suite deleted persisted data and littered the tree
+**Context:** audit F8 ("tests write into the working tree"), promoted ahead of F5 because
+D31 surfaced a destructive interaction the audit had not seen.
+**Verified empirically** (sentinel files + a project-tree snapshot around one full run): a
+single suite run **deleted** a file shaped like a persisted `chat.py` session
+(`artifacts/users/user/sessions/…`, D28's layout) **and** one shaped like a Kaggle download
+(`artifacts/kaggle/<slug>/…`), and **created** a new `outputs/run_*` dir (3 files).
+`outputs/` had grown from 83 run dirs at the audit to 100.
+**Three root causes:**
+1. `conftest.clean_artifacts` `rmtree`d the *real* `artifacts/` before every test. It was
+   written when that directory was test-only scratch. D16 then put Kaggle downloads there
+   and D28 made it `FileArtifactService`'s persistent root — so a cleanup fixture became
+   destructive without anyone editing it. Choosing that root was **my D28 miss**. Latent so
+   far: no `sessions.db` has ever existed here.
+2. `generate_output`'s default root was redirected in exactly one test class; the 7 calls
+   outside it (`test_tools.py`'s end-to-end test, 5 in `test_tools_edge_cases`, 1 in
+   `test_cross_specialist`) wrote to the real `outputs/` — colliding into one
+   `run_<second>_v<n>` dir per run, which is why only one appeared each time.
+3. `ARTIFACTS_DIR = Path("artifacts")` was cwd-relative — and it had already bitten:
+   `/Users/tushar/interests/artifacts/` holds 5 real agent artifacts from May–June (incl. a
+   pre-D8 slash-key dir), written by runs launched from the parent dir.
+**Decision:**
+- One autouse fixture (`_isolate_local_storage`) points all three on-disk stores — fallback
+  artifacts, the outputs root, the Kaggle dir — at a per-test `tmp_path`. Nothing deletes
+  anything real any more.
+- `ARTIFACTS_DIR` anchored to the project (`Path(__file__).resolve().parent.parent /
+  "artifacts"`), matching the Kaggle dir and D28's root. Verified it resolves to the project
+  from the parent dir, the project dir, and an unrelated dir.
+- **Session guard** (`_project_tree_untouched`): snapshot the project tree before and after
+  the session; any file created *or deleted* fails the run. One check covers both F8
+  failure modes. Proven with a probe that wrote one file and deleted another — both listed.
+**The by-value pitfall (same class as D31):** `test_tools.py` and `test_tools_edge_cases.py`
+imported `ARTIFACTS_DIR` *by name* and read artifacts through it at 43 sites. A fixture that
+patches `artifact_utils.ARTIFACTS_DIR` cannot reach those bindings — the tools would have
+written to the temp dir while the tests kept reading the real one. Rewritten to call-time
+`artifact_utils.ARTIFACTS_DIR`; the fixture's docstring now warns against the by-name import.
+**Removed as redundant:** `TestOutputGenerator._redirect_outputs` and D30's
+`isolated_artifacts`. `test_kaggle`'s own redirect stays — it also returns the path its
+assertions use, and resolves to the same per-test dir.
+**Verified:** **479 passed, 6 skipped**; the same sentinel experiment after the fix: nothing
+deleted, nothing created. Removed the one test leftover in `artifacts/` (a
+`test_visualization` fixture written by today's last old-fixture run).
+**Awaiting the user's call (deletion, so not done unilaterally):**
+- `outputs/` — 100 run dirs. **93 match conftest fixtures** (76 `sales_csv`, 17
+  `sample_df`) and are test litter. **7 do not** (generated-dummy-data columns such as
+  `order_date`/`email`, one with extracted date features, one `name,age,city`) — likely real
+  or smoke-test agent runs; the audit's "delete outputs/run_*" would have destroyed them.
+- `/Users/tushar/interests/artifacts/` — the 5 stray May–June artifacts, outside the project.

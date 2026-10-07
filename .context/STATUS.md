@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-07
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -30,13 +30,18 @@ two were a pair, and the fixes belong together. **F7 fixed (D31)** — the packa
 twice under test (`tools.*` vs `datascience_agent.*`: distinct modules, even two `_KERNELS`
 registries); it is now installed editable via `pyproject.toml` (explicit mapped package list),
 every flat import converted, the `pythonpath` hack dropped, two guards added, and the
-fuzzer's documented command works from any directory. **479 passed, 6 skipped.**
-**Open — found during F7, do next:** `conftest.clean_artifacts` `rmtree`s `<project>/artifacts/`
-before every test, and that is where D28's `FileArtifactService` persists `chat.py` sessions
-(and where Kaggle downloads land), so a test run wipes them. Latent — no session DB exists
-yet — but it is the destructive core of audit F8.
-Remaining audit items: F5 deps, F6 pins/locks, F8 test hygiene (incl. the above), F9 docs,
-F10 CI/ruff/LICENSE, F11–F20.
+fuzzer's documented command works from any directory. **F8 fixed (D32)** — a test run
+*deleted* persisted `chat.py` sessions and Kaggle downloads (conftest `rmtree`d the real
+`artifacts/`, which D28 had made the persistent root) and littered `outputs/` (83 → 100 run
+dirs). Now every on-disk store is redirected to a per-test temp dir, `ARTIFACTS_DIR` is
+anchored to the project, and a session guard fails the run if the project tree gains or
+loses a file. **479 passed, 6 skipped.**
+**Awaiting the user (deletions):** (a) `outputs/` — 93 of 100 run dirs match conftest
+fixtures (test litter); 7 don't (likely real/smoke runs on generated dummy data) — keep those
+for review; (b) `/Users/tushar/interests/artifacts/` — 5 stray May–June artifacts from runs
+launched in the parent dir.
+Remaining audit items: F5 deps, F6 pins/locks (+F17 with it), F9 docs, F10 CI/ruff/LICENSE,
+F11–F20 (minus F17).
 **Branch:** main
 
 ## How to run

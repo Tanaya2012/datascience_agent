@@ -3,9 +3,9 @@ Integration tests for all 8 pipeline tools.
 
 Each test calls the async tool function directly (no ADK runtime) and
 validates the returned result dict.  Artifacts are written to and read
-from the local `artifacts/` directory via the filesystem fallback in
-artifact_utils.  The `clean_artifacts` autouse fixture (conftest.py)
-wipes that directory before each test.
+from the local filesystem fallback in artifact_utils, which the
+`_isolate_local_storage` autouse fixture (conftest.py) points at a fresh
+per-test temp dir — always read it as `artifact_utils.ARTIFACTS_DIR`.
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from datascience_agent.tools import artifact_utils
 from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
     load_artifact,
     make_artifact_key,
     parquet_bytes_to_df,
-    ARTIFACTS_DIR,
 )
 from datascience_agent.tools.schemas import (
     AgentSessionState,
@@ -37,7 +37,7 @@ from datascience_agent.tools.schemas import (
 
 def _save_local(key: str, data: bytes) -> None:
     """Write bytes to the local artifacts fallback without a tool_context."""
-    path = ARTIFACTS_DIR / key
+    path = artifact_utils.ARTIFACTS_DIR / key
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
 
@@ -97,7 +97,7 @@ class TestDatasetLoader:
 
         await dataset_loader("local", str(csv_file))
 
-        path = ARTIFACTS_DIR / "dataset_loader__v1__dataset"
+        path = artifact_utils.ARTIFACTS_DIR / "dataset_loader__v1__dataset"
         assert path.exists()
         df = parquet_bytes_to_df(path.read_bytes())
         assert list(df.columns) == ["Name", "Age", "Salary", "JoinDate"]
@@ -245,7 +245,7 @@ class TestDataProfiler:
         result = await profile_dataset(load_r["output_artifact_key"])
 
         assert result["profile_artifact_key"] == "profile_dataset__v1__profile"
-        assert (ARTIFACTS_DIR / "profile_dataset__v1__profile").exists()
+        assert (artifact_utils.ARTIFACTS_DIR / "profile_dataset__v1__profile").exists()
 
     async def test_profile_missing_artifact_returns_failure(self):
         from datascience_agent.tools.data_profiler import profile_dataset
@@ -286,7 +286,7 @@ class TestMissingHandler:
         assert result["success"] is True
         assert "Age" in result["columns_imputed"]
 
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df["Age"].isna().sum() == 0
 
     async def test_mean_imputation(self, csv_file):
@@ -300,7 +300,7 @@ class TestMissingHandler:
         )
 
         assert result["success"] is True
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df["Salary"].isna().sum() == 0
 
     async def test_mode_imputation(self, csv_file):
@@ -327,7 +327,7 @@ class TestMissingHandler:
         )
 
         assert result["success"] is True
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert "Unknown" in df["Name"].values
 
     async def test_constant_missing_fill_value_produces_warning(self, csv_file):
@@ -372,7 +372,7 @@ class TestMissingHandler:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df_out["val"].isna().sum() == 0
 
     async def test_bfill_strategy(self, tmp_path):
@@ -389,7 +389,7 @@ class TestMissingHandler:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df_out["val"].isna().sum() == 0
 
     async def test_drop_threshold_removes_column(self, tmp_path):
@@ -409,7 +409,7 @@ class TestMissingHandler:
 
         assert result["success"] is True
         assert "junk" in result["columns_dropped"]
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert "junk" not in df_out.columns
 
     async def test_nonexistent_column_produces_warning(self, csv_file):
@@ -464,7 +464,7 @@ class TestStandardizer:
         result = await standardize_formats(load_r["output_artifact_key"], normalize_headers=True)
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert "first_name" in df_out.columns
         assert "last_name" in df_out.columns
         assert "age_years" in df_out.columns
@@ -496,7 +496,7 @@ class TestStandardizer:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert pd.api.types.is_numeric_dtype(df_out["price"])
         assert df_out["price"].dropna().iloc[0] == pytest.approx(1200.50)
 
@@ -513,7 +513,7 @@ class TestStandardizer:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert pd.api.types.is_numeric_dtype(df_out["score"])
 
     async def test_date_parsing(self, tmp_path):
@@ -529,7 +529,7 @@ class TestStandardizer:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert pd.api.types.is_datetime64_any_dtype(df_out["event_date"])
 
     async def test_no_changes_when_all_disabled(self, csv_file):
@@ -700,7 +700,7 @@ class TestMerge:
         result = await merge_datasets(primary_key, "depts", "Name", "inner", tool_context=mock_ctx)
 
         assert result["success"] is True
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert len(df) <= 5
 
     async def test_match_rate_computed(self, csv_file, secondary_csv, mock_ctx):
@@ -831,7 +831,7 @@ class TestValidator:
         result = await validate_dataset(load_r["output_artifact_key"])
 
         assert result["success"] is True
-        report_path = ARTIFACTS_DIR / "validate_dataset__v1__report"
+        report_path = artifact_utils.ARTIFACTS_DIR / "validate_dataset__v1__report"
         assert report_path.exists()
 
     async def test_missing_artifact_returns_failure(self):
@@ -858,12 +858,7 @@ class TestValidator:
 # ===========================================================================
 
 class TestOutputGenerator:
-    @pytest.fixture(autouse=True)
-    def _redirect_outputs(self, tmp_path, monkeypatch):
-        """Write user-facing exports under tmp so tests don't pollute ./outputs."""
-        monkeypatch.setattr(
-            "datascience_agent.tools.output_generator._DEFAULT_OUTPUTS_ROOT", tmp_path / "outputs"
-        )
+    # Exports go to a per-test temp dir via conftest's `_isolate_local_storage`.
 
     async def test_output_success(self, csv_file, mock_ctx):
         from datascience_agent.tools.dataset_loader import dataset_loader
@@ -914,7 +909,7 @@ class TestOutputGenerator:
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
 
-        csv_bytes = (ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
+        csv_bytes = (artifact_utils.ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
         df = pd.read_csv(__import__("io").BytesIO(csv_bytes))
         assert len(df) == 5
         assert "Name" in df.columns
@@ -927,7 +922,7 @@ class TestOutputGenerator:
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
 
-        log_bytes = (ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
+        log_bytes = (artifact_utils.ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
         assert isinstance(logs, list)
 
@@ -938,7 +933,7 @@ class TestOutputGenerator:
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
 
-        report_bytes = (ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
+        report_bytes = (artifact_utils.ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
         report_text = report_bytes.decode("utf-8")
         assert "# Data Cleaning Quality Report" in report_text
         assert "## Transformation Log" in report_text
@@ -952,7 +947,7 @@ class TestOutputGenerator:
             load_r["output_artifact_key"], include_summary_stats=True
         )
 
-        report_bytes = (ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
+        report_bytes = (artifact_utils.ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
         assert "## Summary Statistics" in report_bytes.decode("utf-8")
 
     async def test_report_omits_summary_stats_when_disabled(self, csv_file):
@@ -964,7 +959,7 @@ class TestOutputGenerator:
             load_r["output_artifact_key"], include_summary_stats=False
         )
 
-        report_bytes = (ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
+        report_bytes = (artifact_utils.ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
         assert "## Summary Statistics" not in report_bytes.decode("utf-8")
 
     async def test_log_contains_loader_entry(self, csv_file, mock_ctx):
@@ -977,7 +972,7 @@ class TestOutputGenerator:
         load_r = await dataset_loader("local", str(csv_file), tool_context=mock_ctx)
         result = await generate_output(load_r["output_artifact_key"], tool_context=mock_ctx)
 
-        log_bytes = (ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
+        log_bytes = (artifact_utils.ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
         step_names = [l["step_name"] for l in logs]
         assert "dataset_loader" in step_names
@@ -1047,13 +1042,13 @@ class TestEndToEndPipeline:
         assert r["success"], r["error_message"]
 
         # Final CSV should have 4 rows (1 deduped) with snake_case headers
-        csv_bytes = (ARTIFACTS_DIR / r["csv_artifact_key"]).read_bytes()
+        csv_bytes = (artifact_utils.ARTIFACTS_DIR / r["csv_artifact_key"]).read_bytes()
         df_final = pd.read_csv(__import__("io").BytesIO(csv_bytes))
         assert len(df_final) == 4
         assert "name" in df_final.columns  # snake_case applied
 
         # Logs JSON must be parseable and contain all step entries
-        log_bytes = (ARTIFACTS_DIR / r["log_artifact_key"]).read_bytes()
+        log_bytes = (artifact_utils.ARTIFACTS_DIR / r["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
         assert len(logs) >= 6  # loader + profiler + missing + std + dedup + validate
         step_names = {l["step_name"] for l in logs}

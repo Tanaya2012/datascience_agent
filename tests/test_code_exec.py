@@ -298,15 +298,6 @@ async def _seed_session(ctx, who: str, version: int):
     set_session_state(AgentSessionState(current_dataset_key=key), ctx)
 
 
-@pytest.fixture
-def isolated_artifacts(tmp_path, monkeypatch):
-    """Keep fallback artifact writes out of the project's artifacts/ dir."""
-    from datascience_agent.tools import artifact_utils
-
-    monkeypatch.setattr(artifact_utils, "ARTIFACTS_DIR", tmp_path / "artifacts")
-    return tmp_path
-
-
 class TestScratchIsolation:
     async def test_each_session_gets_its_own_scratch_dir(self):
         import asyncio
@@ -319,7 +310,7 @@ class TestScratchIsolation:
         dirs = {k.executor.scratch_dir for k in _KERNELS.values()}
         assert len(dirs) == 2, f"sessions shared a scratch dir: {dirs}"
 
-    async def test_concurrent_sessions_do_not_swap_datasets(self, isolated_artifacts):
+    async def test_concurrent_sessions_do_not_swap_datasets(self):
         """The parent writes the hydrate parquet, then awaits while the kernel reads it.
         With a shared filename the other session overwrites it inside that gap."""
         import asyncio
@@ -335,7 +326,7 @@ class TestScratchIsolation:
         assert ra["stdout"].strip() == "A", "session A hydrated another session's dataset"
         assert rb["stdout"].strip() == "B", "session B hydrated another session's dataset"
 
-    async def test_concurrent_commits_do_not_cross_contaminate(self, isolated_artifacts):
+    async def test_concurrent_commits_do_not_cross_contaminate(self):
         """The kernel writes the commit parquet, then the parent awaits before reading —
         a shared filename commits the other session's data into this session's lineage."""
         import asyncio
@@ -361,7 +352,7 @@ class TestScratchIsolation:
             assert df["who"].unique().tolist() == [name], \
                 f"session {name} committed another session's data"
 
-    async def test_scratch_parquets_are_cleaned_up(self, isolated_artifacts):
+    async def test_scratch_parquets_are_cleaned_up(self):
         from datascience_agent.tools.code_exec.run_python import _KERNELS
 
         ctx = _ctx_for("cleanup-one")

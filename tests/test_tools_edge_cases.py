@@ -20,8 +20,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from datascience_agent.tools import artifact_utils
 from datascience_agent.tools.artifact_utils import (
-    ARTIFACTS_DIR,
     df_to_parquet_bytes,
     parquet_bytes_to_df,
 )
@@ -34,7 +34,7 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 
 def _save_local(key: str, data: bytes) -> None:
-    path = ARTIFACTS_DIR / key
+    path = artifact_utils.ARTIFACTS_DIR / key
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
 
@@ -173,7 +173,7 @@ class TestMissingHandlerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         # Name, Age, Salary all have ≥1 missing value — must be dropped
         assert "Age" not in df_out.columns
         assert "Salary" not in df_out.columns
@@ -191,7 +191,7 @@ class TestMissingHandlerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         # Age and Salary are only partially null — must NOT be dropped
         assert "Age" in df_out.columns
         assert "Salary" in df_out.columns
@@ -226,7 +226,7 @@ class TestMissingHandlerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         # Column is all-null; mode is undefined (empty Series) → column remains null
         assert df_out["value"].isna().all()
 
@@ -244,7 +244,7 @@ class TestMissingHandlerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df_out["value"].isna().all()
 
     async def test_drop_row_multiple_columns_removes_each_row_once(self, tmp_path):
@@ -287,7 +287,7 @@ class TestStandardizerEdgeCases:
         result = await standardize_formats(load_r["output_artifact_key"], normalize_headers=True)
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert list(df_out.columns) == ["first_name", "last_name", "age_years"]
         assert result["log"]["column_lineage"]["columns_renamed"] == {}
 
@@ -305,7 +305,7 @@ class TestStandardizerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert pd.api.types.is_datetime64_any_dtype(df_out["event_date"])
 
     async def test_all_null_column_unchanged_by_standardizer(self, all_null_col_csv):
@@ -322,7 +322,7 @@ class TestStandardizerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert df_out["value"].isna().all()
 
     async def test_numeric_coercion_on_already_numeric_column(self, tmp_path):
@@ -357,7 +357,7 @@ class TestStandardizerEdgeCases:
         )
 
         assert result["success"] is True
-        df_out = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df_out = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert pd.api.types.is_numeric_dtype(df_out["price"])
         assert df_out["price"].iloc[1] == pytest.approx(1000.0)
 
@@ -484,7 +484,7 @@ class TestMergeEdgeCases:
         )
 
         assert result["success"] is True
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         # secondary has 3 rows; right join keeps all 3
         assert len(df) >= 3
 
@@ -498,7 +498,7 @@ class TestMergeEdgeCases:
         )
 
         assert result["success"] is True
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         # primary has 5 rows, secondary 3 rows; outer keeps all unique keys
         assert len(df) >= 3
 
@@ -527,7 +527,7 @@ class TestMergeEdgeCases:
 
         assert result["success"] is True
         assert result["match_rate"] == pytest.approx(0.0)
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / result["output_artifact_key"]).read_bytes())
         assert len(df) == 3  # all primary rows preserved
 
     async def test_merge_perfect_match_rate(self, tmp_path, mock_ctx):
@@ -655,7 +655,7 @@ class TestOutputGeneratorEdgeCases:
         result = await generate_output(load_r["output_artifact_key"])
 
         assert result["success"] is True
-        csv_bytes = (ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
+        csv_bytes = (artifact_utils.ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
         df_out = pd.read_csv(io.BytesIO(csv_bytes))
         assert df_out["a"].isna().sum() == 1
         assert df_out["b"].isna().sum() == 1
@@ -669,7 +669,7 @@ class TestOutputGeneratorEdgeCases:
         result = await generate_output(load_r["output_artifact_key"])
 
         assert result["success"] is True
-        csv_bytes = (ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
+        csv_bytes = (artifact_utils.ARTIFACTS_DIR / result["csv_artifact_key"]).read_bytes()
         df_out = pd.read_csv(io.BytesIO(csv_bytes))
         assert len(df_out) == 0
 
@@ -681,7 +681,7 @@ class TestOutputGeneratorEdgeCases:
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
 
-        log_bytes = (ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
+        log_bytes = (artifact_utils.ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
         assert isinstance(logs, list)
 
@@ -693,7 +693,7 @@ class TestOutputGeneratorEdgeCases:
         load_r = await dataset_loader("local", str(csv_file))
         result = await generate_output(load_r["output_artifact_key"])
 
-        report_bytes = (ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
+        report_bytes = (artifact_utils.ARTIFACTS_DIR / result["report_artifact_key"]).read_bytes()
         report_text = report_bytes.decode("utf-8")
         assert "UTC" in report_text
 
@@ -745,7 +745,7 @@ class TestSalesPipeline:
         assert r["success"], r.get("error_message")
         key = r["output_artifact_key"]
 
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / key).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / key).read_bytes())
         assert "customer_name" in df.columns  # snake_case applied
         assert pd.api.types.is_numeric_dtype(df["sale_amount"])
         assert pd.api.types.is_numeric_dtype(df["units_sold"])
@@ -759,7 +759,7 @@ class TestSalesPipeline:
         assert r["success"], r.get("error_message")
         key = r["output_artifact_key"]
 
-        df = parquet_bytes_to_df((ARTIFACTS_DIR / key).read_bytes())
+        df = parquet_bytes_to_df((artifact_utils.ARTIFACTS_DIR / key).read_bytes())
         assert df["region"].isna().sum() == 0
         assert df["sale_amount"].isna().sum() == 0
 
@@ -778,10 +778,10 @@ class TestSalesPipeline:
         r = await generate_output(key, include_summary_stats=True, tool_context=ctx)
         assert r["success"], r.get("error_message")
 
-        csv_bytes = (ARTIFACTS_DIR / r["csv_artifact_key"]).read_bytes()
+        csv_bytes = (artifact_utils.ARTIFACTS_DIR / r["csv_artifact_key"]).read_bytes()
         df_final = pd.read_csv(io.BytesIO(csv_bytes))
         assert len(df_final) == 5  # 6 rows - 1 duplicate
         assert "customer_name" in df_final.columns
 
-        report_bytes = (ARTIFACTS_DIR / r["report_artifact_key"]).read_bytes()
+        report_bytes = (artifact_utils.ARTIFACTS_DIR / r["report_artifact_key"]).read_bytes()
         assert "## Summary Statistics" in report_bytes.decode("utf-8")
