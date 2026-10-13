@@ -129,8 +129,11 @@ When to use MCP vs. an in-process tool:
   (memory + CPU) + wall-clock timeout, scrubbed env (no inherited secrets),
   dedicated worker venv (curated DS stack), behind an abstract `CodeExecutor`
   interface so we can swap in an **L4 container** backend later without touching callers.
-- Worker venv rebuilt from a committed **lockfile** (`requirements-worker.txt`);
-  the venv itself is gitignored, never committed.
+- Worker venv rebuilt from a committed **lockfile** (`requirements-worker.lock`, exact
+  pins compiled from the ranges in `requirements-worker.txt`); the venv itself is
+  gitignored, never committed. (Until D33 the "lockfile" was the ranges file itself, so
+  two machines could build different sandboxes.) The agent runtime has its own lock,
+  `requirements.lock`, compiled from `pyproject.toml`.
 - **Library awareness:** advertise installed libs in the tool description
   (auto-generated from the worker venv) + enforce via natural `ImportError` +
   **always return tracebacks** so the agent self-corrects.

@@ -8,7 +8,67 @@ version = "0.1.0"
 description = "LLM-guided data-science agent (cleaning, EDA, statistics, modeling) on Google ADK."
 readme = "README.MD"
 requires-python = ">=3.12"
-# Dependencies still live in requirements.txt; they move here with audit F5.
+# Single source of truth for the agent runtime (D33). Exact, tested versions live in
+# requirements.lock (regenerate with the command in its header).
+#
+# The ADK line is held to 2.1.x: a fresh resolve otherwise jumps to ADK 2.11 with
+# google-genai 2.x and mcp 2.x, none of which this code has run on. The coupled bounds
+# below are ADK 2.1.0's *own* declared ranges, not guesses. Upgrading is a separate,
+# deliberate task (ROADMAP backlog: ADK upgrade spike, with audit F17).
+dependencies = [
+    # Core ADK runtime
+    "google-adk>=2.1.0,<2.2",
+    "google-genai>=1.72,<2",        # imported directly (types); ADK 2.1.0's range
+    "mcp>=1.24,<2",                 # sub_agents/_mcp.py stdio connector; ADK 2.1.0's range
+    # Model-agnostic path (D3): ADK's LiteLlm wrapper needs litellm, which nothing
+    # installs by default. ADK 2.1.0 supports exactly this range (its [extensions] pin).
+    "litellm>=1.83.7,<=1.83.14",
+
+    # Kaggle datasets/competitions via the official library (D16).
+    # Auth from ~/.kaggle/kaggle.json or KAGGLE_USERNAME/KAGGLE_KEY.
+    "kaggle>=1.6.0",
+
+    # Persistent sessions (DatabaseSessionService). ADK builds an *async* SQLAlchemy
+    # engine, so SQLite needs the aiosqlite driver (sqlite+aiosqlite://) + greenlet.
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.20.0",
+    "greenlet>=3.0.0",
+
+    # Data handling
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",                # imported directly (modeling, datagen, fuzzer)
+    "pyarrow>=15.0.0",              # parquet serialization
+    "openpyxl>=3.1.0",              # Excel (.xlsx)
+    "xlrd>=2.0.0",                  # Excel (.xls)
+
+    # EDA & visualization (M3): headless matplotlib; scipy for skew/kurtosis + ANOVA.
+    "matplotlib>=3.8.0",
+    "scipy>=1.11.0",
+
+    # Feature engineering (M4) + modeling (M5); joblib persists fitted models.
+    "scikit-learn>=1.4.0",
+    "joblib>=1.3.0",
+
+    # Fuzzy deduplication
+    "rapidfuzz>=3.6.0",
+
+    # Environment & configuration
+    "python-dotenv>=1.0.0",
+
+    # Schemas layer
+    "pydantic>=2.11.0",
+]
+
+[project.optional-dependencies]
+# Test runner. CI and local dev: `pip install -e ".[dev]"` (or the lock, see README).
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+# Only for the quota-spending LLM evals (`RUN_LLM_EVALS=1 pytest -m llm`).
+eval = [
+    "google-adk[eval]>=2.1.0,<2.2",
+]
 
 [tool.setuptools]
 # The repo root IS the `datascience_agent` package (ADK loads it by directory name),

@@ -1,9 +1,9 @@
 """
 Tests for configs/model_config.py — model-agnostic model resolution.
 
-These target the pure decision function `_resolve_spec`, which needs no
-google-adk install. The LiteLLM construction path is covered separately and
-tolerates ADK being absent.
+These target the pure decision function `_resolve_spec`, plus `resolve_model`'s
+LiteLLM construction path — which must succeed now that `litellm` is a declared
+dependency (D33), with its missing-package error tested by simulation.
 """
 
 from __future__ import annotations
@@ -76,12 +76,21 @@ class TestResolveModel:
     def test_gemini_returns_plain_string(self):
         assert resolve_model(model="gemini-2.0-flash") == "gemini-2.0-flash"
 
-    def test_litellm_path_builds_or_raises_cleanly(self):
-        # Without provider extras installed this raises a clear RuntimeError rather
-        # than an opaque ImportError; with them, it returns a LiteLlm instance.
-        try:
-            result = resolve_model(model="claude-sonnet-4-6", provider="anthropic")
-        except RuntimeError as exc:
-            assert "LiteLLM" in str(exc)
-        else:
-            assert result.__class__.__name__ == "LiteLlm"
+    def test_litellm_path_builds_a_model(self, monkeypatch):
+        """`litellm` is a declared dependency (D33), so a non-Gemini provider must build
+        ADK's LiteLlm wrapper. This test used to accept the RuntimeError as a pass, which
+        is how a fresh clone without litellm (audit F5) stayed green. Construction only:
+        no API call, and no key needed."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = resolve_model(model="claude-sonnet-4-6", provider="anthropic")
+        assert result.__class__.__name__ == "LiteLlm"
+        assert result.model == "anthropic/claude-sonnet-4-6"
+
+    def test_missing_litellm_raises_a_clear_error(self, monkeypatch):
+        # A None entry in sys.modules makes the import fail, as if litellm/ADK's
+        # wrapper were not installed — the message must say what to do.
+        import sys
+
+        monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", None)
+        with pytest.raises(RuntimeError, match="LiteLLM"):
+            resolve_model(model="claude-sonnet-4-6", provider="anthropic")

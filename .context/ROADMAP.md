@@ -200,6 +200,13 @@ against neither.
 
 ## Backlog — deferred enhancements (not milestone-bound)
 Cross-cutting gaps surfaced during development; slot into a milestone when prioritized.
+- [ ] **ADK upgrade spike (2.1 → current) — with audit F17 (D33).** The runtime is held to
+      `google-adk>=2.1.0,<2.2` because a fresh resolve jumps to ADK 2.11 + google-genai 2.x +
+      mcp 2.x, all untested here. On a branch: lift the cap and the coupled bounds
+      (google-genai, mcp, litellm — take each from the new ADK's own metadata), recompile
+      `requirements.lock`, run the suite + live evals + bug bash, and replace the private
+      `tool_context._invocation_context.session.id` (run_python's kernel key — if it moves,
+      every session silently shares one kernel, the F4 failure mode) with public API.
 - [ ] **Hallucinated tool name = non-fatal (D23) — do right after M5.** A specialist LLM
       emitting an unregistered tool name (e.g. `value_counts`) makes ADK `raise` and crash the
       whole run (live `adk web` crash; escalation of D19(b)). Fix: a deterministic guard that

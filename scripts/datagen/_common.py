@@ -25,7 +25,7 @@ instead of a numeric tolerance.
 **Deliberate departure from ``generate_dummy_data.py``'s stdlib-only rule:**
 planting known statistical structure needs numpy, and stating an *honest*
 accuracy floor needs sklearn. Both are already agent-runtime dependencies
-(``requirements.txt``), and this is a dev-time script, not agent code.
+(``pyproject.toml``), and this is a dev-time script, not agent code.
 
 Measurers that fit models mirror ``tools/modeling.py::train_model``'s own
 conventions — numeric features only, ``SimpleImputer`` in a ``Pipeline`` — so a

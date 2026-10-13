@@ -26,10 +26,11 @@ for current state, milestones, rationale, and target design.
 All commands run **from the project dir** (this folder).
 
 ```bash
-# 1. Agent runtime env, plus the package itself (editable, so edits apply live)
+# 1. Agent runtime env: the exact tested versions from the lock, then the package
+#    itself (editable, so edits apply live; --no-deps because the lock has them all)
 conda create -n dsagent python=3.12 -y
-conda run -n dsagent pip install -r requirements.txt
-conda run -n dsagent pip install -e .
+conda run -n dsagent pip install -r requirements.lock
+conda run -n dsagent pip install -e . --no-deps
 
 # 2. Code-execution worker venv (sandbox for run_python)
 WORKER_BASE_PYTHON=$(conda run -n dsagent which python) bash scripts/bootstrap_worker.sh
@@ -56,7 +57,11 @@ Optional extras:
 - **Kaggle datasets:** install `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`,
   ensure `~/.local/bin` is on PATH) and add `~/.kaggle/kaggle.json`; the Data Steward then
   exposes Kaggle search/download. Without these it simply omits those tools.
-- **LLM eval suite:** `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (uses quota).
+- **LLM eval suite:** `conda run -n dsagent pip install -e ".[eval]"` once, then
+  `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (uses quota).
+- **Dependencies** are declared in `pyproject.toml` (ranges; the ADK line is held to 2.1.x)
+  and pinned in `requirements.lock` / `requirements-worker.lock`. After changing a range,
+  regenerate the lock with the `uv pip compile …` command printed in its header (D33).
 
 Generate a messy sample dataset to try it on:
 

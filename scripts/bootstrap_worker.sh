@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build the code-execution worker venv (.worker-venv) from requirements-worker.txt.
+# Build the code-execution worker venv (.worker-venv) from requirements-worker.lock —
+# exact pins, so every machine gets the sandbox the suite was tested against (D33).
+# requirements-worker.txt holds the human-edited ranges the lock is compiled from.
 # The venv is gitignored; this script reconstructs it on any machine.
 #
 # Usage:
@@ -16,7 +18,7 @@ PYBASE="${WORKER_BASE_PYTHON:-python3}"
 echo "Creating worker venv at $VENV using '$PYBASE' ..."
 "$PYBASE" -m venv "$VENV"
 "$VENV/bin/python" -m pip install --upgrade pip >/dev/null
-"$VENV/bin/python" -m pip install -r "$HERE/requirements-worker.txt"
+"$VENV/bin/python" -m pip install -r "$HERE/requirements-worker.lock"
 
 echo "Verifying worker deps ..."
 "$VENV/bin/python" -c "import pandas, numpy, pyarrow, sklearn, matplotlib, scipy, statsmodels; print('worker deps OK')"

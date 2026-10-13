@@ -132,7 +132,7 @@ all-zero target, which is exactly the defect this corpus was built to prevent.
 
 ## Dependencies
 
-numpy, pandas, scipy, scikit-learn — all already in `requirements.txt`. This is a
+numpy, pandas, scipy, scikit-learn — all declared in `pyproject.toml`. This is a
 deliberate departure from `generate_dummy_data.py`'s stdlib-only rule: planting
 known statistical structure needs numpy, and stating an honest accuracy floor needs
 sklearn. These are dev-time scripts, not agent code.

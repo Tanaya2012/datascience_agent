@@ -1012,3 +1012,52 @@ deleted, nothing created. Removed the one test leftover in `artifacts/` (a
   `order_date`/`email`, one with extracted date features, one `name,age,city`) — likely real
   or smoke-test agent runs; the audit's "delete outputs/run_*" would have destroyed them.
 - `/Users/tushar/interests/artifacts/` — the 5 stray May–June artifacts, outside the project.
+
+### 2026-10-09 — D33: audit F5 + F6 — dependencies declared, bounded to the tested line, and locked
+**Context:** audits F5 (undeclared deps) and F6 (drift, no real lock). Done as **one change**
+because declaring `litellm` (F5) forces a version range, and the right range depends on the
+ADK version (F6) — the same "fix related findings together" lesson as D29/D30.
+**F5, verified** against a live resolve of the old `requirements.txt` in a fresh venv:
+- **`litellm` was never installed.** A fresh clone following `.env.example`'s
+  `LLM_PROVIDER=anthropic` hint hit the RuntimeError in `_build_litellm`. It existed in
+  `dsagent` only because `google-adk[eval]` pulled it in via `google-cloud-aiplatform[evaluation]`.
+- `numpy` and `google-genai` imported directly but undeclared (always present transitively —
+  hygiene). `pytest`/`pytest-asyncio` in the runtime list; the `[eval]` extra declared nowhere.
+- Why nobody noticed: `test_litellm_path_builds_or_raises_cleanly` **accepted the
+  RuntimeError as a pass**, and no import scan can see litellm — our code never imports it;
+  ADK's `LiteLlm` wrapper does.
+**F6, verified — worse than audited:** a fresh clone resolved **ADK 2.11.0, google-genai
+2.28.0, mcp 2.3.0** (tested: 2.1.0 / 1.75.0 / 1.27.2) — two major-version jumps. And `dsagent`
+itself ran **litellm 1.85.6, outside ADK 2.1.0's supported `1.83.7–1.83.14`** (pip didn't
+flag it: ADK's pin lives in an extra that wasn't installed).
+**Decision (user-approved):** stay on the ADK 2.1.x line now; upgrading is a separate spike.
+- `pyproject.toml` is the single source; `requirements.txt` deleted. Runtime deps + `litellm`,
+  `numpy`, `google-genai`; extras `dev` (pytest, pytest-asyncio) and `eval` (`google-adk[eval]`).
+- Coupled bounds taken from **ADK 2.1.0's own metadata**: `google-adk>=2.1.0,<2.2`,
+  `google-genai>=1.72,<2`, `mcp>=1.24,<2`, `litellm>=1.83.7,<=1.83.14`. Other deps keep floors.
+- **Locks:** `requirements.lock` (128 pins, runtime + dev) and `requirements-worker.lock`
+  (20 pins), compiled with `uv pip compile --universal --python-version 3.12`, constrained to
+  the environments' exact versions so each lock records what was tested. Regenerate with the
+  command in each header. `bootstrap_worker.sh` now installs from the worker lock.
+**Environment change in `dsagent` (approved as "litellm → 1.83.14"; it moved 11 more):**
+litellm pins its own dependencies, so the downgrade dragged `aiohttp 3.14.1→3.13.4`,
+`click 8.4.1→8.1.8`, `huggingface_hub 1.19.0→1.16.1`, `importlib_metadata 8.7.1→8.5.0`,
+`jsonschema 4.26.0→4.23.0`, `openai 2.41.1→2.24.0`, `pydantic 2.13.4→2.12.5`,
+`pydantic_core 2.46.4→2.41.5`, `tiktoken 0.13.0→0.12.0`, `tokenizers 0.23.1→0.22.2`,
+`typer 0.25.1→0.27.3`. All verified: `pip check` clean, suite green, LiteLlm builds,
+`adk web .` serves the agent. (I had told the user only litellm would move — I checked our
+bounds, not litellm's own pins.) The env is now inside ADK's declared ranges, which it was not.
+**Verified:** a fresh venv built **only from `requirements.lock`** (no eval extra) passes the
+full suite; every package it shares with `dsagent` has the identical version. The worker lock
+reproduces `.worker-venv` exactly (only `pip` itself differs).
+**Guards:**
+- `test_litellm_path_builds_a_model` replaces the either-outcome test: the build must succeed
+  (keys removed — none needed); `test_missing_litellm_raises_a_clear_error` simulates the
+  absence. Shown in a litellm-less venv: the old test **passed**, the new one **fails**.
+- `test_every_directly_imported_distribution_is_declared`: AST-scans every import, maps it to
+  its distribution (`google.*` resolved one level deeper), and requires it declared — runtime
+  code against `dependencies`, tests against `+ [dev]`; plus an explicit list of *indirect*
+  requirements with reasons (litellm, the session DB drivers, pandas' parquet/Excel engines).
+  Mutation-tested: removing numpy/google-genai/litellm from pyproject produced all three.
+**Suite:** **481 passed, 6 skipped** (479 + the declaration guard + the split LiteLLM test).
+**Deferred:** ADK upgrade spike + F17 → ROADMAP backlog.

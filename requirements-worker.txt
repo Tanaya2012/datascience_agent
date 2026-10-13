@@ -1,8 +1,10 @@
 # Dependencies for the code-execution WORKER venv (.worker-venv), kept separate
-# from the agent runtime (requirements.txt) so the two never conflict.
+# from the agent runtime (pyproject.toml) so the two never conflict.
 #
-# This file is the committed declaration of the sandbox environment — the venv
-# itself is gitignored and rebuilt from here via scripts/bootstrap_worker.sh.
+# This file holds the human-edited version ranges. The venv is built from the
+# exact pins in requirements-worker.lock (compiled from this file; see its header
+# for the command) via scripts/bootstrap_worker.sh — regenerate the lock after
+# editing here. The venv itself is gitignored.
 # The list also doubles as the source for the "available libraries" advertised
 # to the model in the run_python tool description.
 

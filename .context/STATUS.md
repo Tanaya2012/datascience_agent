@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-10
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -35,13 +35,19 @@ fuzzer's documented command works from any directory. **F8 fixed (D32)** — a t
 `artifacts/`, which D28 had made the persistent root) and littered `outputs/` (83 → 100 run
 dirs). Now every on-disk store is redirected to a per-test temp dir, `ARTIFACTS_DIR` is
 anchored to the project, and a session guard fails the run if the project tree gains or
-loses a file. **479 passed, 6 skipped.**
+loses a file. **F5 + F6 fixed together (D33)** — `litellm` was never installed on a fresh
+clone (every non-Gemini provider broke; a test accepted the error as a pass) and a fresh
+resolve jumped to ADK 2.11 / genai 2.x / mcp 2.x. `pyproject.toml` is now the single
+dependency source (`requirements.txt` deleted), held to the ADK 2.1.x line with ADK's own
+coupled bounds, and pinned in `requirements.lock` + `requirements-worker.lock`; a fresh venv
+built only from the lock passes the suite. `dsagent` changed: litellm → 1.83.14, which
+dragged 11 of its pinned deps (incl. pydantic 2.12.5) — all verified. **481 passed, 6 skipped.**
 **Awaiting the user (deletions):** (a) `outputs/` — 93 of 100 run dirs match conftest
 fixtures (test litter); 7 don't (likely real/smoke runs on generated dummy data) — keep those
 for review; (b) `/Users/tushar/interests/artifacts/` — 5 stray May–June artifacts from runs
 launched in the parent dir.
-Remaining audit items: F5 deps, F6 pins/locks (+F17 with it), F9 docs, F10 CI/ruff/LICENSE,
-F11–F20 (minus F17).
+Remaining audit items: F9 docs, F10 CI/ruff/LICENSE, F11–F20. F17 is folded into the ADK
+upgrade spike (ROADMAP backlog).
 **Branch:** main
 
 ## How to run
@@ -50,9 +56,14 @@ The package is **installed editable** into `dsagent` (`pip install -e .`, D31), 
 `python -m datascience_agent.…` command works from any directory. Convention: run everything
 **from the project dir** (`/Users/tushar/interests/datascience_agent`); ADK is `adk web .` /
 `adk run .`. Import style is `datascience_agent.*` only — two guards enforce it (D31).
+- **Dependencies (D33):** declared in `pyproject.toml` (ADK held to 2.1.x), pinned in
+  `requirements.lock` (agent) and `requirements-worker.lock` (sandbox). Fresh env:
+  `pip install -r requirements.lock && pip install -e . --no-deps`; LLM evals also need
+  `pip install -e ".[eval]"`. After editing a range, regenerate the lock with the command in
+  its header. `dsagent` currently also carries the `[eval]` extra.
 - Tests: `conda run -n dsagent python -m pytest -q` (not from the parent dir: pytest would
   collect the sibling repos).
-  Last run: **479 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **481 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - Invariant fuzzer: `... python -m datascience_agent.scripts.fuzz_tools [N] [--out DIR]` —
   report lands in a fresh temp dir per run (path printed). Last: 120 seeds, 0 findings.
 - **Planted-truth corpus** (D26):
