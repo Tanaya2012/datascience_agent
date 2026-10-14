@@ -1120,3 +1120,34 @@ exist with nothing to satisfy; adopting mypy/pyright is its own effort.
   quota, so each run crashed at the end and lost its findings. D31 fixed the fuzzer without
   searching for siblings. Now `--out DIR` (default: fresh temp dir), resolved and created
   *before* the first LLM call; a repo-wide grep finds no other hard-coded session paths.
+
+### 2026-10-14 — D35: License — Apache-2.0 (closes audit F10's last code item)
+**Context:** the GitHub repo is public but had no license, so anyone could read the code and
+nobody could legally reuse it. The user chose; this records why.
+**Who decides:** 54 of 55 commits are Tushar Kumar's; Tanaya Pakhale's one commit is the
+one-line `README.MD` the repo was created with. The repo lives under Tanaya's account and it
+is a **joint project**, so the copyright line names both and the license is a joint decision.
+**The choice, framed by what others may do with the code:** permissive (use anywhere, even
+closed products) vs copyleft (share changes back — for a service-shaped agent that means
+AGPL-3.0, since GPL only bites on distribution) vs keeping all rights (today's state). Noted
+the asymmetry: a permissive or copyleft release can't be withdrawn for published versions,
+while "no license" can always be relaxed later. Dependency scan: no copyleft constraint
+(`text-unidecode`, via `kaggle`, is dual Artistic/GPL — Artistic applies).
+**Decision: Apache-2.0** over MIT — it is Google ADK's own license (the framework this is
+built on), it carries an explicit patent grant with a retaliation clause (MIT has none; AI
+agents are a patent-active field), and its Section 5 defines how contributions are licensed.
+Costs accepted: longer text; redistributors must keep notices and mark modified files.
+**Implementation:** `LICENSE` is the canonical text, byte-identical to apache.org's
+LICENSE-2.0.txt (cross-checked against GitHub's licenses API; SHA-256 `cfc7749b…`), left
+unmodified per Apache convention. The copyright lives in `NOTICE` ("Copyright 2025-2026
+Tushar Kumar and Tanaya Pakhale"), which Section 4(d) obliges redistributors to keep —
+attribution travels with the code. `pyproject.toml` declares PEP 639 metadata
+(`license = "Apache-2.0"`, `license-files = ["LICENSE", "NOTICE"]`), which needs setuptools
+≥77 (build floor raised from 64). README gained a License section.
+**Verified:** installed metadata reports `License-Expression: Apache-2.0` with both files in
+the dist-info; a real wheel ships both under `dist-info/licenses/`. That wheel was also the
+first non-editable build of D31's explicit package list: exactly the 8 packages, no top-level
+`tools`/`configs`, no tests. Suite 481 passed, lint clean.
+**Not done (optional):** per-file license headers (Apache's appendix suggests them; not
+required). **Note:** the license takes effect when published — confirm with the co-author
+before pushing.

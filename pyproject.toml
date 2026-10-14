@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=64"]
+# >=77 for PEP 639 license metadata (the SPDX `license` string + `license-files` below).
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +8,8 @@ name = "datascience-agent"
 version = "0.1.0"
 description = "LLM-guided data-science agent (cleaning, EDA, statistics, modeling) on Google ADK."
 readme = "README.MD"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"
 # Single source of truth for the agent runtime (D33). Exact, tested versions live in
 # requirements.lock (regenerate with the command in its header).

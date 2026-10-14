@@ -46,11 +46,13 @@ dragged 11 of its pinned deps (incl. pydantic 2.12.5) — all verified. **F10 mo
 bug-catching rules only; 48 findings fixed, none blindly (3 `pytest.raises(Exception)` tests
 tightened to the field they test). The whole job passes on a pristine checkout copy, but has
 **not yet run on Linux** — watch the worker's 2 GiB `RLIMIT_AS`, enforced only on Linux.
-**481 passed, 6 skipped.**
-**Awaiting the user:** (1) LICENSE choice — the repo is public; (2) Linux check — start Docker,
-or push and read the first CI run; (3) deletions — (a) `outputs/`: 93 of 100 run dirs match
-conftest fixtures (test litter), 7 don't (likely real/smoke runs) — keep those for review;
-(b) `/Users/tushar/interests/artifacts/` — 5 stray May–June artifacts.
+**Licensed Apache-2.0 (D35)** — joint project; `LICENSE` (canonical, verbatim) + `NOTICE`
+(Copyright 2025-2026 Tushar Kumar and Tanaya Pakhale) + PEP 639 metadata; confirm with the
+co-author before pushing. **481 passed, 6 skipped.**
+**Awaiting the user:** (1) Linux check — start Docker, or push and read the first CI run;
+(2) deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
+7 don't (likely real/smoke runs) — keep those for review; (b) `/Users/tushar/interests/artifacts/`
+— 5 stray May–June artifacts.
 Remaining audit items: F9 docs, F11–F20 (F17 folded into the ADK upgrade spike). Type
 checking deferred (D34).
 **Branch:** main

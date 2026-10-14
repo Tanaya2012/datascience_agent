@@ -79,3 +79,9 @@ conda run -n dsagent python -m datascience_agent.scripts.generate_dummy_data --s
 
 Legacy cleaning core (8 tools + 167 tests) is complete and reused as the
 deterministic layer. Capability expansion is tracked in `.context/ROADMAP.md`.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
+Copyright 2025–2026 Tushar Kumar and Tanaya Pakhale — see [NOTICE](NOTICE), which
+redistributions must retain.
