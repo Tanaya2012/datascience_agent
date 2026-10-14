@@ -28,7 +28,6 @@ from ..artifact_utils import (
 )
 from ..schemas import (
     AgentSessionState,
-    ColumnLineage,
     DatasetVersion,
     DeduplicatorResult,
     FuzzyAlgorithm,
@@ -103,8 +102,8 @@ async def deduplicate_dataset(
             warnings.append("fuzzy_dedup=True but no fuzzy_columns specified; skipping fuzzy step.")
         else:
             try:
-                from rapidfuzz import fuzz, process  # type: ignore[import]
-
+                # _get_fuzzy_scorer imports rapidfuzz itself; a missing install raises
+                # ImportError there, inside this try.
                 algo_fn = _get_fuzzy_scorer(fuzzy_algorithm)
                 before = len(df_out)
                 df_out = _apply_fuzzy_dedup(
@@ -232,11 +231,10 @@ def _apply_fuzzy_dedup(
 
     threshold_score = threshold * 100  # rapidfuzz uses 0–100
 
+    # keep="last": scan in reverse so the greedy pass keeps each cluster's last row,
+    # then flip the mask back to the original row order (below).
     if keep == "last":
         keys = list(reversed(keys))
-        index_order = list(reversed(range(len(df))))
-    else:
-        index_order = list(range(len(df)))
 
     keep_mask = [True] * len(keys)
     for i in range(len(keys)):

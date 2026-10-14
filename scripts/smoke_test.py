@@ -9,7 +9,6 @@ Run: conda run -n dsagent python -m datascience_agent.scripts.smoke_test
 from __future__ import annotations
 
 import asyncio
-import os
 import tempfile
 from pathlib import Path
 

@@ -32,12 +32,10 @@ import tempfile
 import traceback
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 import datascience_agent.tools.artifact_utils as au
 from datascience_agent.tools.artifact_utils import (
-    compute_checksum,
     df_to_parquet_bytes,
     get_session_state,
     load_artifact,

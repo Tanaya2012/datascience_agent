@@ -17,11 +17,11 @@ from typing import Optional
 import matplotlib
 
 matplotlib.use("Agg")  # headless; must be set before pyplot import
-import matplotlib.pyplot as plt  # noqa: E402
-import pandas as pd  # noqa: E402
-from google.adk.tools import ToolContext  # type: ignore[import]  # noqa: E402
+import matplotlib.pyplot as plt
+import pandas as pd
+from google.adk.tools import ToolContext  # type: ignore[import]
 
-from .artifact_utils import (  # noqa: E402
+from .artifact_utils import (
     get_session_state,
     load_artifact,
     make_artifact_key,
@@ -31,7 +31,7 @@ from .artifact_utils import (  # noqa: E402
     save_artifact,
     set_session_state,
 )
-from .schemas import (  # noqa: E402
+from .schemas import (
     AgentSessionState,
     ChartKind,
     PlotResult,

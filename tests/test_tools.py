@@ -19,15 +19,11 @@ import pytest
 from datascience_agent.tools import artifact_utils
 from datascience_agent.tools.artifact_utils import (
     df_to_parquet_bytes,
-    load_artifact,
-    make_artifact_key,
     parquet_bytes_to_df,
 )
 from datascience_agent.tools.schemas import (
     AgentSessionState,
     DatasetVersion,
-    MissingStrategy,
-    PipelineStatus,
 )
 
 
@@ -974,7 +970,7 @@ class TestOutputGenerator:
 
         log_bytes = (artifact_utils.ARTIFACTS_DIR / result["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
-        step_names = [l["step_name"] for l in logs]
+        step_names = [entry["step_name"] for entry in logs]
         assert "dataset_loader" in step_names
 
     async def test_missing_artifact_returns_failure(self):
@@ -1051,6 +1047,6 @@ class TestEndToEndPipeline:
         log_bytes = (artifact_utils.ARTIFACTS_DIR / r["log_artifact_key"]).read_bytes()
         logs = json.loads(log_bytes)
         assert len(logs) >= 6  # loader + profiler + missing + std + dedup + validate
-        step_names = {l["step_name"] for l in logs}
+        step_names = {entry["step_name"] for entry in logs}
         assert "dataset_loader" in step_names
         assert "deduplicate_dataset" in step_names

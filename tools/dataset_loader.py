@@ -9,7 +9,6 @@ MCP tool first, then pass the downloaded file path here.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional

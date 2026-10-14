@@ -11,7 +11,6 @@ import json
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
-import pandas as pd
 
 from .artifact_utils import (
     build_dataset_profile,

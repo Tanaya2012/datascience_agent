@@ -84,7 +84,7 @@ class CodeExecutor(ABC):
     # **Async callers must use these.** A natively-async backend (an L4 container)
     # overrides `aexecute` alone; every helper below rides on it.
 
-    async def aexecute(self, code: str, timeout: float | None = None,
+    async def aexecute(self, code: str, timeout: float | None = None,  # noqa: ASYNC109 — the worker's wall-clock limit, enforced in the thread; not an asyncio timeout
                        plot_dir: str | None = None) -> ExecResult:
         """`execute` off the event loop, in a worker thread."""
         return await asyncio.to_thread(self.execute, code, timeout, plot_dir)
@@ -265,9 +265,11 @@ class SubprocessKernelExecutor(CodeExecutor):
             msg = self._stdout_q.get(timeout=_STARTUP_TIMEOUT)
         except queue.Empty:
             self._kill()
+            # `from None`: the Empty only means "timed out"; the worker's stderr below is
+            # the real diagnosis, and chaining would bury it under a misleading traceback.
             raise KernelStartError(
                 "Worker did not signal ready. stderr:\n" + "".join(self._stderr_buf)
-            )
+            ) from None
         if not (isinstance(msg, dict) and msg.get("ready")):
             self._kill()
             raise KernelStartError(f"Unexpected worker handshake: {msg!r}")

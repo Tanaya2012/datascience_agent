@@ -142,7 +142,7 @@ def main() -> None:
 
     covered = sorted({c for e in merged for c in e["capabilities"]})
     print(f"\n  MANIFEST.json written. Capabilities covered: {', '.join(covered)}")
-    print(f"\nVerify at any time with:  python -m datascience_agent.scripts.datagen --verify")
+    print("\nVerify at any time with:  python -m datascience_agent.scripts.datagen --verify")
 
 
 if __name__ == "__main__":

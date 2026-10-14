@@ -11,15 +11,16 @@ stream shows only delegations — but the shared `pipeline_state` (transformatio
 column_lineage, warnings, confidence) records what the inner tools actually did.
 
 Run (needs GOOGLE_API_KEY, uses real LLM):
-  conda run -n dsagent python scripts/live_bug_bash.py [repeats]
-Findings + transcripts → scratchpad/live_bug_bash_findings.json.
+  conda run -n dsagent python -m datascience_agent.scripts.live_bug_bash [repeats] [--out DIR]
+Findings + transcripts → <DIR>/live_bug_bash_findings.json — by default a fresh temp dir
+per run, created (and printed) *before* any LLM call so a bad path fails cheaply.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
-import sys
 import tempfile
 from pathlib import Path
 
@@ -27,8 +28,6 @@ from dotenv import load_dotenv
 
 MAX_EVENTS = 120          # per turn; exceeding it is itself a finding (runaway/loop)
 LOOP_REPEAT = 4           # same (delegation, args) more than this = loop
-SCRATCH = Path("/private/tmp/claude-501/-Users-tushar-interests-datascience-agent/"
-               "735ec4f5-1cde-4bc3-88b2-07d8a842ffc4/scratchpad")
 
 # An "honest" recovery response either names the failure OR asks for what's missing /
 # lists what's available — anything but silently fabricating a result.
@@ -319,7 +318,19 @@ def generic_violations(rr):
 
 
 async def main():
-    repeats = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    ap = argparse.ArgumentParser(description="Live-agent bug bash (spends real LLM quota).")
+    ap.add_argument("repeats", nargs="?", type=int, default=3,
+                    help="runs per scenario (default 3)")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="directory for live_bug_bash_findings.json (default: fresh temp dir)")
+    args = ap.parse_args()
+    repeats = args.repeats
+    # Resolve the output location *before* spending quota: this used to be a hard-coded
+    # path into a long-gone session scratchpad, so every run crashed at the final write
+    # and lost its findings (D34).
+    out_dir = args.out or Path(tempfile.mkdtemp(prefix="ds_bugbash_"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"findings will be written to {out_dir}")
     pkg = Path(__file__).resolve().parent.parent
     load_dotenv(pkg / ".env")
     from datascience_agent.agent import root_agent, MODEL
@@ -349,7 +360,7 @@ async def main():
                 print(f"  {name}[{r}] {status}" + (f"  {viol}" if viol else ""))
             print(f"= {name}: {repeats-fails}/{repeats} clean\n")
 
-    out = SCRATCH / "live_bug_bash_findings.json"
+    out = out_dir / "live_bug_bash_findings.json"
     out.write_text(json.dumps(findings, indent=2, default=str))
     print(f"\n{len(findings)} failing runs across {len(SCENARIOS)*repeats} total. → {out}")
 

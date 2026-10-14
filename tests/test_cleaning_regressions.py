@@ -11,7 +11,6 @@ handle_missing_values. Guards three fixes:
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 

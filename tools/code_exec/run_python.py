@@ -39,7 +39,6 @@ from ..schemas import (
     CodeExecResult,
     ColumnLineage,
     DatasetVersion,
-    ShapeInfo,
     TaskType,
     TransformationLog,
 )
@@ -241,8 +240,7 @@ async def _save_plots(paths: list[str], tool_context: Optional[ToolContext]) -> 
     keys: list[str] = []
     for i, path in enumerate(paths):
         try:
-            with open(path, "rb") as fh:
-                data = fh.read()
+            data = await asyncio.to_thread(Path(path).read_bytes)
             key = f"{STEP_NAME}__plot__{uuid.uuid4().hex[:8]}_{i}.png"
             await save_artifact(key, data, tool_context)
             keys.append(key)

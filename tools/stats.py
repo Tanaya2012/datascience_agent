@@ -245,7 +245,8 @@ def _correlation(df, cols, method, alpha) -> StatTestReport:
     try:
         cm = CorrelationMethod(method)
     except ValueError:
-        raise ValueError(f"Unknown method '{method}'. Expected 'pearson' or 'spearman'.")
+        # Replaces the enum's own message with a user-facing one; nothing lost by dropping it.
+        raise ValueError(f"Unknown method '{method}'. Expected 'pearson' or 'spearman'.") from None
     pair = df[cols].apply(pd.to_numeric, errors="coerce").dropna()
     if len(pair) < 3:
         raise ValueError("correlation needs at least 3 paired observations.")

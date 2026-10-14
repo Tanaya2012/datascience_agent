@@ -16,7 +16,6 @@ import io
 import json
 import math
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -582,7 +581,7 @@ def build_eda_report(
     Build an EdaReport for a DataFrame: numeric correlations, distribution shape
     (skew/kurtosis), optional feature↔target relationships, and a plain-English
     narrative. Operates on already-numeric columns (run cleaning first for best
-    results). Pure/​deterministic; uses scipy for skew/kurtosis and ANOVA.
+    results). Pure/deterministic; uses scipy for skew/kurtosis and ANOVA.
     """
     corr_method = CorrelationMethod(method)
     n_rows, n_cols = df.shape

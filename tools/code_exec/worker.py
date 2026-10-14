@@ -124,7 +124,7 @@ def _run_code(code: str, plot_dir: str | None) -> dict:
                 value = eval(compile(last_expr, "<cell>", "eval"), _NS)
                 if value is not None:
                     result_repr = repr(value)
-    except BaseException as exc:  # noqa: BLE001 — report everything, incl. SystemExit
+    except BaseException as exc:  # report everything to the parent, incl. SystemExit
         error = traceback.format_exc()
         error_type = type(exc).__name__
 

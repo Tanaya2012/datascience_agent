@@ -1061,3 +1061,62 @@ reproduces `.worker-venv` exactly (only `pip` itself differs).
   Mutation-tested: removing numpy/google-genai/litellm from pyproject produced all three.
 **Suite:** **481 passed, 6 skipped** (479 + the declaration guard + the split LiteLLM test).
 **Deferred:** ADK upgrade spike + F17 → ROADMAP backlog.
+
+### 2026-10-14 — D34: audit F10 — CI + lint (bug-catching rules only); LICENSE pending; types deferred
+**Context:** audit F10 ("no CI, lint, type-check, packaging, or LICENSE"). Packaging landed in
+D31; this closes the rest except the two items that need the user (below).
+**Verified:** no `.github/`, no LICENSE, and the GitHub repo is **public** (unauthenticated API
+→ 200) — the code is visible to anyone, but with no license nobody has rights to reuse it.
+Ruff 0.17.0 on the audit's rule set (`E4,E7,E9,F`) → **34** findings (audit: 35). Ruff 0.17's
+*new, broader defaults* → **364**, dominated by style (import order 103, `Optional`→`X | None`
+95) and 66 `blind-except` hits that are the tools' deliberate never-raise contract (INV-CRASH).
+**Decision — enforce rules that catch bugs, not style:** `E4,E7,E9,F` + `B904` (raise-from),
+`B017` (blind `pytest.raises`), `PLE` (incl. invisible characters), `ASYNC` (blocking calls in
+async functions — the D29 failure class), `RUF100` (stale noqa); `ASYNC240` ignored in scripts/
+and tests/ (not on the server's event loop). Config in `pyproject.toml`; `ruff>=0.17,<0.18` in
+the `dev` extra (rule semantics change between minors); lock gained exactly `ruff==0.17.0`.
+**48 findings → 0, none waved through blindly:**
+- 35 safe auto-fixes (30 unused imports, 6 stale noqa, 1 empty f-string). One stripped noqa
+  carried a *reason* (worker's deliberate `except BaseException`) — restored as a plain comment.
+- `index_order` in the fuzzy dedup: dead code, **not** a bug — traced the keep="last" path
+  (reverse keys → greedy keep-first → reverse mask) and every row maps back correctly.
+- rapidfuzz "availability" import: redundant — `_get_fuzzy_scorer` imports it inside the same
+  `try`, so the missing-package fallback is unchanged.
+- Zero-width space in a docstring: deleted (ruff's auto-fix would have written a literal
+  `​` escape into the docstring).
+- `B904` ×2 (`executor.start`, `stats._correlation`): `from None`, with the reason — the
+  replaced exception (`queue.Empty`, the enum's ValueError) carries no information.
+- `B017` ×3: tightened to `pytest.raises(ValidationError, match="<field>")` so each can only
+  pass for the bound it tests. All three still pass — the bounds are genuinely enforced.
+- `ASYNC230`: D29 had left `_save_plots`' PNG read on the loop as "small files" (D29 caveat d);
+  moved off-loop for consistency — supersedes that caveat.
+- `ASYNC109` (`aexecute`'s `timeout` is the worker's wall-clock limit, enforced in the thread)
+  and `ASYNC250` (`input()` in the single-user REPL) — reasoned `noqa`s.
+**CI:** `.github/workflows/ci.yml` — ubuntu-latest, Python 3.12, pip cache keyed on both locks;
+installs from `requirements.lock` exactly as the README does, builds the worker venv with
+`bootstrap_worker.sh`, then `ruff check .` and `pytest -q`; least-privilege permissions,
+superseded runs cancelled. Checks out into a folder named `datascience_agent` explicitly: the
+suite assumes that name (pytest imports tests as `datascience_agent.tests.*`, and D31's runtime
+guard requires it), so a fork or rename would otherwise fail confusingly.
+**Validated:** `actionlint` clean; the workflow's exact commands, run with pip against a
+**pristine checkout copy** (tracked + new files only — no `.env`, `outputs/`, worker venv):
+lock install ✓, worker venv from its lock ✓, lint ✓, **481 passed, 6 skipped** ✓.
+**Not verified — Linux.** Docker is installed but its daemon wasn't running. Specific risk: the
+worker sets `RLIMIT_AS` = 2 GiB, which macOS ignores and **Linux enforces**; numpy/OpenBLAS and
+pyarrow reserve large virtual address space, so `run_python` could fail at worker start on
+Linux — in CI, and in any Linux deployment. The first CI run (or a Docker run) settles it.
+**Awaiting the user:** the LICENSE choice (no copyleft constraint among the 128 locked deps;
+ADK is Apache-2.0). **Deferred:** type checking — 34 `type: ignore` pragmas (30 `[import]`)
+exist with nothing to satisfy; adopting mypy/pyright is its own effort.
+**Also fixed in this pass — two misses of mine from earlier rounds:**
+- **D33's lock files carried 144 comment lines naming my session scratchpad**
+  (`#   -c /private/tmp/claude-501/…/scratchpad/dsagent_constraints.txt`): uv records the path
+  of any `-c` constraints file in its `via` annotations. pip ignores comments, so every pin
+  was correct, but it was noise plus a local path headed for a public repo. Regenerated both
+  locks without `-c` (the existing lock serves as the version preference): worker pins
+  unchanged, agent pins `+ruff` only. The old lines remain in unpushed commit `d2423df`.
+- **`scripts/live_bug_bash.py` had the same dead hard-coded output path as the fuzzer**
+  (a long-gone session's scratchpad). Its write happens *after* every scenario has spent LLM
+  quota, so each run crashed at the end and lost its findings. D31 fixed the fuzzer without
+  searching for siblings. Now `--out DIR` (default: fresh temp dir), resolved and created
+  *before* the first LLM call; a repo-wide grep finds no other hard-coded session paths.

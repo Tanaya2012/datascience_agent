@@ -38,7 +38,8 @@ WORKER_BASE_PYTHON=$(conda run -n dsagent which python) bash scripts/bootstrap_w
 # 3. Config — copy the template and set your key(s)
 cp .env.example .env        # then edit: GOOGLE_API_KEY (or another provider's key)
 
-# 4. Verify
+# 4. Verify — the same two checks CI runs on every push (.github/workflows/ci.yml)
+conda run -n dsagent ruff check .
 conda run -n dsagent python -m pytest -q
 
 # 5. Run

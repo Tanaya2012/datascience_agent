@@ -11,11 +11,11 @@ Verifies:
 
 from __future__ import annotations
 
-import hashlib
 from datetime import datetime
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from datascience_agent.tools.schemas import (
     AgentSessionState,
@@ -232,7 +232,7 @@ class TestTaskPlanModels:
         assert cfg.strategy_config["age"] == MissingStrategy.median
 
     def test_missing_handler_config_drop_threshold_bounds(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match="drop_threshold"):
             MissingHandlerConfig(strategy_config={}, drop_threshold=1.5)
 
     def test_format_standardizer_config_defaults(self):
@@ -352,7 +352,7 @@ class TestDataProfileModels:
         assert restored.quality_score_estimate == 85.0
 
     def test_dataset_profile_quality_score_bounds(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match="quality_score_estimate"):
             DatasetProfile(
                 artifact_key="x",
                 shape=(10, 2),
@@ -455,7 +455,7 @@ class TestToolResults:
         assert r.match_rate == 0.95
 
     def test_merge_result_match_rate_bounds(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match="match_rate"):
             MergeResult(success=True, step_name="x", match_rate=1.5)
 
     def test_validator_result(self):

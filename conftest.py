@@ -155,7 +155,6 @@ def all_null_col_csv(tmp_path) -> Path:
 @pytest.fixture()
 def sales_csv(tmp_path) -> Path:
     """Realistic sales dataset with currency strings, mixed dates, duplicates, and missing values."""
-    import numpy as np
 
     df = pd.DataFrame(
         {

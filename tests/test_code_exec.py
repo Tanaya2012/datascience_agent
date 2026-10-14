@@ -9,7 +9,6 @@ mock_ctx fixture and reset the per-session kernel registry between tests.
 from __future__ import annotations
 
 import os
-import sys
 
 import pytest
 
@@ -19,7 +18,6 @@ from datascience_agent.tools.artifact_utils import (
     parquet_bytes_to_df,
 )
 from datascience_agent.tools.code_exec.executor import (
-    SubprocessKernelExecutor,
     make_default_executor,
 )
 from datascience_agent.tools.code_exec.run_python import reset_kernels, run_python

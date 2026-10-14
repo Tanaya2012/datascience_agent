@@ -34,7 +34,6 @@ from .schemas import (
     ShapeInfo,
     TaskType,
     TransformationLog,
-    ColumnLineage,
 )
 
 

@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-14
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -41,13 +41,18 @@ resolve jumped to ADK 2.11 / genai 2.x / mcp 2.x. `pyproject.toml` is now the si
 dependency source (`requirements.txt` deleted), held to the ADK 2.1.x line with ADK's own
 coupled bounds, and pinned in `requirements.lock` + `requirements-worker.lock`; a fresh venv
 built only from the lock passes the suite. `dsagent` changed: litellm → 1.83.14, which
-dragged 11 of its pinned deps (incl. pydantic 2.12.5) — all verified. **481 passed, 6 skipped.**
-**Awaiting the user (deletions):** (a) `outputs/` — 93 of 100 run dirs match conftest
-fixtures (test litter); 7 don't (likely real/smoke runs on generated dummy data) — keep those
-for review; (b) `/Users/tushar/interests/artifacts/` — 5 stray May–June artifacts from runs
-launched in the parent dir.
-Remaining audit items: F9 docs, F10 CI/ruff/LICENSE, F11–F20. F17 is folded into the ADK
-upgrade spike (ROADMAP backlog).
+dragged 11 of its pinned deps (incl. pydantic 2.12.5) — all verified. **F10 mostly done
+(D34)** — CI workflow (lint + offline suite, installing from the locks) and ruff with
+bug-catching rules only; 48 findings fixed, none blindly (3 `pytest.raises(Exception)` tests
+tightened to the field they test). The whole job passes on a pristine checkout copy, but has
+**not yet run on Linux** — watch the worker's 2 GiB `RLIMIT_AS`, enforced only on Linux.
+**481 passed, 6 skipped.**
+**Awaiting the user:** (1) LICENSE choice — the repo is public; (2) Linux check — start Docker,
+or push and read the first CI run; (3) deletions — (a) `outputs/`: 93 of 100 run dirs match
+conftest fixtures (test litter), 7 don't (likely real/smoke runs) — keep those for review;
+(b) `/Users/tushar/interests/artifacts/` — 5 stray May–June artifacts.
+Remaining audit items: F9 docs, F11–F20 (F17 folded into the ADK upgrade spike). Type
+checking deferred (D34).
 **Branch:** main
 
 ## How to run
@@ -61,6 +66,9 @@ The package is **installed editable** into `dsagent` (`pip install -e .`, D31), 
   `pip install -r requirements.lock && pip install -e . --no-deps`; LLM evals also need
   `pip install -e ".[eval]"`. After editing a range, regenerate the lock with the command in
   its header. `dsagent` currently also carries the `[eval]` extra.
+- Lint: `conda run -n dsagent ruff check .` — bug-catching rules only, config in
+  `pyproject.toml` (D34). **CI** (`.github/workflows/ci.yml`) runs lint + the offline suite
+  on every push to main and every PR, installing from the locks like the README does.
 - Tests: `conda run -n dsagent python -m pytest -q` (not from the parent dir: pytest would
   collect the sibling repos).
   Last run: **481 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).

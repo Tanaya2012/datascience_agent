@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ._common import Scenario, asserted, judgment, measured, prompt, register
+from ._common import asserted, judgment, measured, prompt, register
 
 REGIONS = ["North", "South", "East", "West", "Central"]
 PLANS = ["Basic", "Standard", "Premium"]

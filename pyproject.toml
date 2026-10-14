@@ -60,10 +60,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Test runner. CI and local dev: `pip install -e ".[dev]"` (or the lock, see README).
+# Test runner + linter. CI and local dev: `pip install -e ".[dev]"` (or the lock, see README).
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "ruff>=0.17,<0.18",             # rule semantics change between minors — pin the minor
 ]
 # Only for the quota-spending LLM evals (`RUN_LLM_EVALS=1 pytest -m llm`).
 eval = [
@@ -87,3 +88,25 @@ packages = [
     "datascience_agent.tools.cleaning",
     "datascience_agent.tools.code_exec",
 ]
+
+[tool.ruff]
+target-version = "py312"
+# .worker-venv, artifacts/, outputs/, data/ are skipped via .gitignore (ruff respects it).
+
+[tool.ruff.lint]
+# Rules that catch bugs, not style (D34). ruff 0.17's broader defaults add ~300 style
+# findings (import order, Optional -> X | None) and flag the tools' deliberate
+# never-raise `except Exception` (the INV-CRASH contract) — churn with no correctness gain.
+select = [
+    "E4", "E7", "E9", "F",  # pyflakes + pycodestyle's error subset (ruff's classic defaults)
+    "B904",                 # `raise ... from err` inside except — keep the causal chain
+    "B017",                 # pytest.raises(Exception) passes on *any* error, hiding the real one
+    "PLE",                  # pylint errors, incl. invisible characters in source
+    "ASYNC",                # blocking calls inside async functions — the D29 failure class
+    "RUF100",               # stale `# noqa` comments
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts and tests do not run on the server's event loop; cheap path checks are fine there.
+"scripts/**" = ["ASYNC240"]
+"tests/**" = ["ASYNC240"]

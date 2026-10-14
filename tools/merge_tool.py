@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
-import pandas as pd
 
 from .artifact_utils import (
     compute_checksum,

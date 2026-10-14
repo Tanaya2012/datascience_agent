@@ -44,7 +44,7 @@ async def main() -> None:
     try:
         while True:
             try:
-                user = input("you > ").strip()
+                user = input("you > ").strip()  # noqa: ASYNC250 — single-user REPL: waiting on the human is the point
             except EOFError:
                 break
             if user.lower() in {"exit", "quit"}:

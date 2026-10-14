@@ -15,18 +15,15 @@ from __future__ import annotations
 
 import io
 import json
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from datascience_agent.tools import artifact_utils
 from datascience_agent.tools.artifact_utils import (
-    df_to_parquet_bytes,
     parquet_bytes_to_df,
 )
-from datascience_agent.tools.schemas import AgentSessionState, DatasetVersion
-from datetime import datetime
+from datascience_agent.tools.schemas import AgentSessionState
 
 
 # ---------------------------------------------------------------------------

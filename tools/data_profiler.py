@@ -7,7 +7,6 @@ saves it as a JSON artifact, and updates AgentSessionState.
 
 from __future__ import annotations
 
-import json
 from typing import Optional
 from google.adk.tools import ToolContext  # type: ignore[import]
 
@@ -28,7 +27,6 @@ from .schemas import (
     ShapeInfo,
     TaskType,
     TransformationLog,
-    ColumnLineage,
 )
 
 
