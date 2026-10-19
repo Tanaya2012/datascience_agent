@@ -16,7 +16,12 @@ redirect; the real stdout carries only protocol JSON (one line per response).
 
 Resource limits (best-effort) are applied at startup from env vars:
   WORKER_RLIMIT_CPU  — CPU seconds (RLIMIT_CPU)
-  WORKER_RLIMIT_AS   — address-space bytes (RLIMIT_AS; not enforced on macOS)
+  WORKER_RLIMIT_DATA — memory bytes (RLIMIT_DATA: heap + anonymous mappings, i.e.
+                       memory actually allocated; not enforced on macOS). Not
+                       RLIMIT_AS: address space is reserved far beyond real use
+                       (thread stacks, allocator arenas — ~3 GB for ~210 MB used,
+                       growing with CPU count), so a 2 GiB AS cap crashed pyarrow
+                       on Linux (D36).
 """
 
 from __future__ import annotations
@@ -57,12 +62,12 @@ def _apply_limits() -> None:
             resource.setrlimit(resource.RLIMIT_CPU, (int(cpu), int(cpu) + 1))
         except Exception:
             pass
-    mem = os.environ.get("WORKER_RLIMIT_AS")
+    mem = os.environ.get("WORKER_RLIMIT_DATA")
     if mem:
         try:
-            resource.setrlimit(resource.RLIMIT_AS, (int(mem), int(mem)))
+            resource.setrlimit(resource.RLIMIT_DATA, (int(mem), int(mem)))
         except Exception:
-            pass  # macOS commonly ignores RLIMIT_AS
+            pass  # macOS does not enforce RLIMIT_DATA
 
 
 def _harvest_plots(plot_dir: str | None) -> list[str]:

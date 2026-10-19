@@ -126,7 +126,8 @@ When to use MCP vs. an in-process tool:
 ## Code-execution sandbox (the escape hatch)
 
 - **Level: L2** — separate Python subprocess, persistent kernel, `resource.setrlimit`
-  (memory + CPU) + wall-clock timeout, scrubbed env (no inherited secrets),
+  (memory via `RLIMIT_DATA` — real allocations, not reserved address space, D36 — + CPU)
+  + wall-clock timeout + immediate detection of a dead worker, scrubbed env (no inherited secrets),
   dedicated worker venv (curated DS stack), behind an abstract `CodeExecutor`
   interface so we can swap in an **L4 container** backend later without touching callers.
 - Worker venv rebuilt from a committed **lockfile** (`requirements-worker.lock`, exact

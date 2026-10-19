@@ -32,7 +32,7 @@ _WORKER_SCRIPT = str(Path(__file__).resolve().parent / "worker.py")
 
 # Default L2 limits.
 _DEFAULT_CPU_SECONDS = 20
-_DEFAULT_MEM_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB (not enforced on macOS)
+_DEFAULT_MEM_BYTES = 2 * 1024 * 1024 * 1024  # 2 GiB of real memory, RLIMIT_DATA (D36; not enforced on macOS)
 _DEFAULT_TIMEOUT = 30.0
 _STARTUP_TIMEOUT = 30.0
 
@@ -225,7 +225,7 @@ class SubprocessKernelExecutor(CodeExecutor):
             "PYTHONUNBUFFERED": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
             "WORKER_RLIMIT_CPU": str(self.cpu_seconds),
-            "WORKER_RLIMIT_AS": str(self.mem_bytes),
+            "WORKER_RLIMIT_DATA": str(self.mem_bytes),
         }
         # Defence in depth: never inherit anything that looks like a secret.
         return {k: v for k, v in env.items()
@@ -321,6 +321,19 @@ class SubprocessKernelExecutor(CodeExecutor):
         self._proc.stdin.write(json.dumps(obj) + "\n")
         self._proc.stdin.flush()
 
+    def _crashed(self, elapsed: float) -> ExecResult:
+        """The worker process died mid-request (native abort, OOM kill, os._exit…)."""
+        code = self._proc.returncode if self._proc is not None else None
+        time.sleep(0.1)                      # let the stderr drain thread catch up
+        tail = "".join(self._stderr_buf)[-2000:].strip()
+        self._proc = None                    # next call starts a fresh kernel
+        return ExecResult(
+            ok=False, duration=elapsed, error_type="KernelCrashed",
+            error=(f"The kernel process exited unexpectedly (exit code {code}). "
+                   "It will be restarted, so prior in-memory state is lost."
+                   + (f"\nWorker stderr:\n{tail}" if tail else "")),
+        )
+
     def execute(self, code: str, timeout: float | None = None,
                 plot_dir: str | None = None) -> ExecResult:
         timeout = timeout or self.default_timeout
@@ -350,8 +363,12 @@ class SubprocessKernelExecutor(CodeExecutor):
                         error_type="TimeoutError",
                     )
                 try:
-                    msg = self._stdout_q.get(timeout=remaining)
+                    # Short slices so a dead worker is noticed within ~0.2 s instead of
+                    # being reported as a full-length timeout (D36).
+                    msg = self._stdout_q.get(timeout=min(remaining, 0.2))
                 except queue.Empty:
+                    if self._proc is not None and self._proc.poll() is not None:
+                        return self._crashed(time.monotonic() - start)
                     continue
                 if not isinstance(msg, dict) or msg.get("id") != rid:
                     continue  # skip stray handshake / mismatched ids

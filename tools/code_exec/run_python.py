@@ -191,8 +191,8 @@ async def run_python(
     os.makedirs(plot_dir, exist_ok=True)
     res: ExecResult = await kernel.executor.aexecute(code, plot_dir=plot_dir)
 
-    # A timeout kills the kernel → its `df` is gone; force re-hydrate next call.
-    if res.timed_out:
+    # A timeout or crash kills the kernel → its `df` is gone; force re-hydrate next call.
+    if res.timed_out or res.error_type == "KernelCrashed":
         kernel.loaded_key = None
 
     # 5. Persist any plots as artifacts.

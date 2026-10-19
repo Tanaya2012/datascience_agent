@@ -1151,3 +1151,35 @@ first non-editable build of D31's explicit package list: exactly the 8 packages,
 **Not done (optional):** per-file license headers (Apache's appendix suggests them; not
 required). **Note:** the license takes effect when published — confirm with the co-author
 before pushing.
+
+### 2026-10-17 — D36: the worker's memory cap broke `run_python` on Linux; dead workers looked like timeouts
+**Context:** the D34 follow-up — CI had only ever run on macOS. With Docker available, the full
+CI job ran in a `python:3.12` Linux container against a clean checkout copy: lint clean,
+**2 failed / 479 passed**, both in the dataframe round trip.
+**Root cause:** the worker capped memory with `RLIMIT_AS` = 2 GiB. That limits *reserved address
+space*, not memory used. Measured on Linux (15 CPUs): a parquet round trip uses ~210 MB of real
+memory but reserves ~3.0 GB (thread stacks, allocator arenas — it scales with CPU count; 1.7 GB
+with threads capped to 1). Under the cap pyarrow could not create its threads and aborted in C++
+(`what(): Resource temporarily unavailable`) — flaky on this machine (one probe squeaked through
+at a 2.06 GB peak), certain on a large server. macOS doesn't enforce `RLIMIT_AS`, so it never
+showed locally. **So `run_python` was broken on any Linux deployment, not just CI.**
+**Second bug it exposed:** the dying worker never answers, and `execute()` only ever waited on
+the reply queue — so a crash surfaced as a 30 s `TimeoutError` ("your code ran too long"),
+pointing debugging the wrong way.
+**Decision (user-approved):**
+1. Cap with **`RLIMIT_DATA`** (heap + anonymous mappings ≈ memory actually allocated; Linux ≥4.7),
+   same 2 GiB. Verified in the container: normal round trip passes with headroom, and a genuine
+   3 GiB allocation is still stopped with a clean `MemoryError`. Env var renamed
+   `WORKER_RLIMIT_AS` → `WORKER_RLIMIT_DATA`. Still a no-op on macOS.
+   Rejected: a bigger `RLIMIT_AS` (still CPU-count dependent), thread-count caps alone (fragile
+   and unrelated to real memory), dropping the cap (loses runaway protection).
+2. `execute()` waits in 0.2 s slices and checks the process; a dead worker returns
+   `error_type="KernelCrashed"` with exit code and stderr tail within ~0.2 s, and the next call
+   starts a fresh kernel. `run_python` now resets its hydration marker on a crash as on a
+   timeout, so `df` is reloaded.
+**Tests (all 3 fail on the old code):** dead worker reported fast as a crash with its stderr and
+recovers; `run_python` re-hydrates after a crash; the worker uses `RLIMIT_DATA`, never
+`RLIMIT_AS`. The existing round-trip tests are the Linux regression guard, now enforced by CI.
+**Verified:** macOS 484 passed; **Linux container 484 passed, 6 skipped, lint clean.** Caveat:
+Docker here is Linux/ARM; GitHub's runners are x86 — the limit is kernel behaviour, so it
+applies to both; the first real CI run confirms.

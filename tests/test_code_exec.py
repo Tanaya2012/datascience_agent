@@ -101,6 +101,38 @@ class TestExecutor:
         assert r.plots, "expected at least one harvested figure"
         assert os.path.exists(r.plots[0])
 
+    def test_dead_worker_is_reported_fast_as_a_crash_and_recovers(self):
+        """A worker that dies mid-cell (native abort, OOM kill) used to be reported only
+        after the full timeout, as a misleading TimeoutError (D36)."""
+        import time
+
+        ex = make_default_executor()
+        ex.start()
+        try:
+            t0 = time.monotonic()
+            r = ex.execute("import os; os.write(2, b'boom\\n'); os._exit(3)",  # fd 2, like a native abort
+                           timeout=20)
+            elapsed = time.monotonic() - t0
+            assert not r.ok and not r.timed_out
+            assert r.error_type == "KernelCrashed"
+            assert "exit code 3" in r.error and "boom" in r.error
+            assert elapsed < 5, f"crash took {elapsed:.1f}s to report"
+            assert ex.execute("21 + 21").result_repr == "42"   # fresh kernel
+        finally:
+            ex.shutdown()
+
+    def test_memory_cap_is_rlimit_data_not_rlimit_as(self):
+        """RLIMIT_AS caps reserved address space (~3 GB for ~210 MB used with pyarrow,
+        growing with CPU count) and crashed parquet I/O on Linux; RLIMIT_DATA caps
+        memory actually allocated (D36)."""
+        ex = make_default_executor()
+        assert "WORKER_RLIMIT_DATA" in ex._build_env()
+        assert "WORKER_RLIMIT_AS" not in ex._build_env()
+        worker_src = (__import__("pathlib").Path(__file__).resolve().parent.parent
+                      / "tools" / "code_exec" / "worker.py").read_text()
+        assert "resource.RLIMIT_DATA" in worker_src
+        assert "resource.RLIMIT_AS" not in worker_src
+
     def test_wall_clock_timeout_and_recovery(self):
         ex = make_default_executor()
         ex.start()
@@ -149,6 +181,17 @@ class TestRunPythonTool:
         assert any(p.lower() == "pandas" for p in r1["available_packages"])
         r2 = await run_python("2 + 2", tool_context=mock_ctx)
         assert r2["available_packages"] == []
+
+    async def test_kernel_crash_forces_rehydrate(self, mock_ctx, csv_file):
+        """After a crash the new kernel has no `df`; the next call must reload it."""
+        await dataset_loader(
+            source_type="local", dataset_identifier=csv_file, tool_context=mock_ctx
+        )
+        crashed = await run_python("import os; os._exit(1)", tool_context=mock_ctx)
+        assert crashed["error_type"] == "KernelCrashed" and not crashed["timed_out"]
+        r = await run_python("df.shape", tool_context=mock_ctx)
+        assert r["success"], r
+        assert r["result_repr"] == "(5, 4)"
 
     async def test_commit_creates_versioned_dataset(self, mock_ctx, csv_file):
         await dataset_loader(

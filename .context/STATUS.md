@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-10-14
+**Last updated:** 2026-10-17
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -45,12 +45,13 @@ dragged 11 of its pinned deps (incl. pydantic 2.12.5) — all verified. **F10 mo
 (D34)** — CI workflow (lint + offline suite, installing from the locks) and ruff with
 bug-catching rules only; 48 findings fixed, none blindly (3 `pytest.raises(Exception)` tests
 tightened to the field they test). The whole job passes on a pristine checkout copy, but has
-**not yet run on Linux** — watch the worker's 2 GiB `RLIMIT_AS`, enforced only on Linux.
+now **verified on Linux** (Docker, D36): that run found `run_python` broken on Linux — the
+worker's `RLIMIT_AS` cap crashed pyarrow — fixed by capping real memory (`RLIMIT_DATA`) and
+reporting dead workers as crashes instead of 30 s timeouts.
 **Licensed Apache-2.0 (D35)** — joint project; `LICENSE` (canonical, verbatim) + `NOTICE`
 (Copyright 2025-2026 Tushar Kumar and Tanaya Pakhale) + PEP 639 metadata; confirm with the
-co-author before pushing. **481 passed, 6 skipped.**
-**Awaiting the user:** (1) Linux check — start Docker, or push and read the first CI run;
-(2) deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
+co-author before pushing. **484 passed, 6 skipped** (macOS and Linux).
+**Awaiting the user:** (1) push, and check the first real (x86) CI run; (2) deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
 7 don't (likely real/smoke runs) — keep those for review; (b) `/Users/tushar/interests/artifacts/`
 — 5 stray May–June artifacts.
 Remaining audit items: F9 docs, F11–F20 (F17 folded into the ADK upgrade spike). Type
@@ -73,7 +74,7 @@ The package is **installed editable** into `dsagent` (`pip install -e .`, D31), 
   on every push to main and every PR, installing from the locks like the README does.
 - Tests: `conda run -n dsagent python -m pytest -q` (not from the parent dir: pytest would
   collect the sibling repos).
-  Last run: **481 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
+  Last run: **484 passed, 6 skipped** (skipped = LLM-gated evals; structural eval tests run always).
 - Invariant fuzzer: `... python -m datascience_agent.scripts.fuzz_tools [N] [--out DIR]` —
   report lands in a fresh temp dir per run (path printed). Last: 120 seeds, 0 findings.
 - **Planted-truth corpus** (D26):
