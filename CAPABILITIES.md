@@ -1,15 +1,16 @@
-# Capabilities & How to Run (as of M4)
+# Capabilities & How to Run (as of M5b)
 
 A hands-on guide to what the data-science agent can do today and how to try it.
 For project state and roadmap see `.context/`.
 
 Since M2 the agent is a **coordinator + specialists** team: an orchestrator routes
 each request to a focused specialist over a shared artifact/audit layer and
-`run_python` kernel. The five specialists are **Data Steward, Cleaning, Analysis,
-Feature-Engineering, and Reporting**. M3 gave Analysis first-class **EDA**
-(`explore_dataset`) and **visualization** (`plot_dataset`); M4 adds the
+`run_python` kernel. The six specialists are **Data Steward, Cleaning, Analysis,
+Feature-Engineering, Modeling, and Reporting**. M3 gave Analysis first-class **EDA**
+(`explore_dataset`) and **visualization** (`plot_dataset`); M4 added the
 **Feature-Engineering** specialist (encode/scale/bin/datetime) and **statistical
-tests** (`statistical_test`) on Analysis.
+tests** (`statistical_test`) on Analysis; M5a–b added the **Modeling** specialist
+(train, cross-validate, feature importance, clustering).
 
 ---
 
@@ -19,9 +20,10 @@ tests** (`statistical_test`) on Analysis.
 - **Code-execution sandbox:** `.worker-venv` (pandas, numpy, scipy, scikit-learn,
   matplotlib, statsmodels). Rebuild with
   `WORKER_BASE_PYTHON=<dsagent python> bash scripts/bootstrap_worker.sh`.
-- **Config:** `.env` holds `GOOGLE_API_KEY` and `AGENT_MODEL=gemini-2.5-flash`.
-  To use another provider: set `LLM_PROVIDER=anthropic` + `AGENT_MODEL=claude-...`
-  (+ that provider's API key). See `configs/model_config.py`.
+- **Config:** `.env` holds `GOOGLE_API_KEY`. The default model is `gemini-2.5-pro`
+  (`configs/model_config.py`); set `AGENT_MODEL` to override it, e.g. the cheaper
+  `gemini-2.5-flash` that `.env.example` suggests. To use another provider: set
+  `LLM_PROVIDER=anthropic` + `AGENT_MODEL=claude-...` (+ that provider's API key).
 - **Kaggle:** the Data Steward has `search_kaggle` + `download_kaggle` tools backed by
   the official `kaggle` library (D16 — replaced the inadequate `kaggle-mcp`). They need
   credentials (`~/.kaggle/kaggle.json`, or `KAGGLE_USERNAME`/`KAGGLE_KEY`); without them
@@ -97,8 +99,10 @@ try are in each key's `prompts` list. Details: `scripts/datagen/README.md`.
 **Multi-agent orchestration (M2)**
 - An **orchestrator** plans and routes each request to a specialist and reflects
   on the result: **Data Steward** (load / Kaggle / uploads / profile),
-  **Cleaning** (the deterministic tools), **Analysis** (`run_python` EDA/Q&A),
-  **Reporting** (export). Specialists share one session, artifact layer, and kernel.
+  **Cleaning** (the deterministic tools), **Analysis** (EDA, charts, statistical
+  tests, `run_python` Q&A), **Feature-Engineering** (model-ready transforms),
+  **Modeling** (train / evaluate), **Reporting** (export). Specialists share one
+  session, artifact layer, and kernel.
 - **Uploaded files**: in `adk web`, the Data Steward ingests a file you upload in
   the UI (not just a path) via `ingest_uploaded_file`.
 - **Kaggle** (with credentials): search and download datasets/competitions via the
@@ -136,6 +140,20 @@ try are in each key's `prompts` list. Details: `scripts/datagen/README.md`.
 - **`statistical_test`** (on Analysis) — `t_test`, `anova`, `chi_square`,
   `correlation` via scipy, returning statistic + p-value + a plain-English verdict.
 
+**Modeling (M5a–b) — on the Modeling specialist**
+- **`train_model`** — classification, regression, or clustering with scikit-learn.
+  Estimators: logistic regression / random forest / gradient boosting (classification),
+  linear regression / random forest / gradient boosting (regression), k-means
+  (clustering). Fits on a held-out split and reports accuracy, weighted F1 and ROC AUC
+  (binary), or R² / RMSE / MAE, or silhouette + inertia for clusters. Features default
+  to the numeric columns (encode categoricals first); missing values are imputed inside
+  the pipeline.
+- **`evaluate_model`** — cross-validates a trained model (mean ± std per metric) and
+  ranks feature importances (tree importances or |coefficient|). Defaults to the most
+  recently trained model.
+- Trained models are saved as artifacts and registered in shared session state, so
+  other specialists can refer to them by name. The dataset itself is never changed.
+
 **Code-execution escape hatch (`run_python`) — the M1 addition**
 - Runs Python on the live dataset (`df`) in an isolated, persistent kernel.
 - Covers everything the fixed tools don't: derive/transform columns, filter,
@@ -170,16 +188,18 @@ Parquet artifact + a `TransformationLog` — a full audit trail.
 6. **Merge two datasets**
    > "Also load `/path/to/lookup.csv` as a secondary dataset and left-join it on `customer_id`."
 
-7. **Full pipeline + export**
+7. **Train and evaluate a model**
+   > "Encode `region`, then train a random forest to predict `churned` and tell me which
+   > features matter most."
+
+8. **Full pipeline + export**
    > "Clean this dataset end-to-end, validate quality, and export the cleaned CSV with a report."
 
 ---
 
 ## What it cannot do yet (coming in later milestones)
 
-- ML modeling — train/eval, CV, metrics, feature importance (M5)
+- Predict with a trained model, and automatic model selection (M5c)
 - Narrative reports + notebook export + cross-session memory + reflection (M6)
-- A dedicated Modeling specialist (added in M5; for now Analysis's `run_python`
-  covers ad-hoc modeling)
 
 See `.context/ROADMAP.md` for the full plan.

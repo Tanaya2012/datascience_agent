@@ -49,11 +49,11 @@ comes from routing **every** data mutation through a versioned artifact + log.
    └─────────┴──────► shared ARTIFACT + AUDIT LAYER ◄───────────┘
 ```
 
-> **Status (M4):** the orchestrator + **five** specialists below — Data Steward,
-> Cleaning, Analysis/EDA, Feature-Engineering, Reporting — are implemented
-> (`agent.py` + `sub_agents/`). The **Modeling** specialist is part of the *target*
-> but deferred to M5 when it gains real tools (D9); until then the Analysis
-> specialist's `run_python` covers ad-hoc modeling.
+> **Status (M5b):** the orchestrator + all **six** specialists below are implemented
+> (`agent.py` + `sub_agents/`). Modeling joined in M5a once it had real tools (D9);
+> its `predict_model` / `auto_select_model` come in M5c. The orchestrator routes on
+> each specialist's one-line blurb in its instruction, so a test keeps every blurb
+> naming its specialist's deterministic tools (D37).
 
 - **Orchestrator** — converses, plans, routes to specialists, reflects on results.
 - **Specialists** — focused `LlmAgent`s, each with a small relevant toolset,

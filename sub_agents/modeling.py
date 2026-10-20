@@ -5,7 +5,7 @@ The 6th specialist. Owns the deterministic sklearn modeling tools plus the
 `run_python` escape hatch for anything outside the enum-constrained catalog. Trained
 models are registered in `AgentSessionState.models` and flow to other specialists via
 shared state (not lossy NL summaries) — `evaluate_model` reads a model back out of that
-registry by name. `predict_model` / `auto_select_model` arrive in M5c.
+registry by name. `predict_model` / `auto_select_model` are planned for M5c.
 """
 
 from __future__ import annotations

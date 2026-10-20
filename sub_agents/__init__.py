@@ -1,10 +1,10 @@
 """
-Specialist sub-agents for the data-science orchestrator (M2).
+Specialist sub-agents for the data-science orchestrator.
 
 Each specialist is a focused ``LlmAgent`` owning a small relevant toolset; the
 orchestrator (``agent.py``) wraps them via ``AgentTool`` and routes work to them.
-Four specialists exist today — Data Steward, Cleaning, Analysis, Reporting;
-Feature-Engineering and Modeling specialists arrive in M4/M5 when they gain tools.
+Six specialists: Data Steward, Cleaning, Analysis, Feature-Engineering, Modeling,
+Reporting.
 """
 
 from __future__ import annotations

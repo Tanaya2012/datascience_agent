@@ -3,8 +3,8 @@ Feature-engineering tools (M4) — owned by the Feature-Engineering specialist.
 
 Mutating, auditable transforms: each loads the current dataset, transforms a copy,
 and checkpoints a new versioned Parquet artifact + a TransformationLog (with
-column lineage) — exactly like the cleaning tools. M4a ships encode + scale;
-bin + datetime features land in M4b.
+column lineage) — exactly like the cleaning tools: encode, scale, bin, and
+datetime features.
 
 Encoders/scalers use scikit-learn (already in the agent env). Every tool takes an
 optional ``dataset_artifact_key`` that defaults to the session's current dataset

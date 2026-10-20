@@ -3,7 +3,7 @@
 > Update this at the **end of every work session**. It is the first thing to read
 > when resuming. Keep it short and current.
 
-**Last updated:** 2026-10-17
+**Last updated:** 2026-10-20
 **Current milestone:** **M5 — Modeling, IN PROGRESS.** Phase 1 (D20) + M5a (D22) + **M5b
 (D24) done**: `evaluate_model` (CV + ranked feature importance, model looked up **by name in
 the registry**) + **clustering** (kmeans) in `train_model`; live-verified load → train →
@@ -49,12 +49,15 @@ now **verified on Linux** (Docker, D36): that run found `run_python` broken on L
 worker's `RLIMIT_AS` cap crashed pyarrow — fixed by capping real memory (`RLIMIT_DATA`) and
 reporting dead workers as crashes instead of 30 s timeouts.
 **Licensed Apache-2.0 (D35)** — joint project; `LICENSE` (canonical, verbatim) + `NOTICE`
-(Copyright 2025-2026 Tushar Kumar and Tanaya Pakhale) + PEP 639 metadata; confirm with the
-co-author before pushing. **484 passed, 6 skipped** (macOS and Linux).
-**Awaiting the user:** (1) push, and check the first real (x86) CI run; (2) deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
+(Copyright 2025-2026 Tushar Kumar and Tanaya Pakhale) + PEP 639 metadata.
+**Pushed 2026-10-20** (through `b20ac08`); **first x86 CI run green** (484 passed, lint clean).
+**F9 done (D37, uncommitted):** docs brought to M5b; the orchestrator's routing blurbs now
+describe every deterministic tool (three lagged, nudging the LLM to `run_python`), with a test
+tying blurbs to rosters; one default model (`gemini-2.5-pro`). **492 passed, 6 skipped.**
+**Awaiting the user:** deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
 7 don't (likely real/smoke runs) — keep those for review; (b) `/Users/tushar/interests/artifacts/`
 — 5 stray May–June artifacts.
-Remaining audit items: F9 docs, F11–F20 (F17 folded into the ADK upgrade spike). Type
+Remaining audit items: F11–F20 (F17 folded into the ADK upgrade spike). Type
 checking deferred (D34).
 **Branch:** main
 
@@ -103,7 +106,8 @@ The package is **installed editable** into `dsagent` (`pip install -e .`, D31), 
 ## Done
 - Analysis of the legacy 8-tool cleaning pipeline complete.
 - Direction, architecture, and 5 key decisions agreed (see `DECISIONS.md`).
-- Approved plan written: `~/.claude/plans/splendid-napping-wigderson.md`.
+- Approved plan written to `~/.claude/plans/splendid-napping-wigderson.md` (that file no
+  longer exists; its content lives on in `ROADMAP.md` + `DECISIONS.md`).
 - `.context/` dev-continuity docs created (this set).
 - **M0 complete** (verified, 192 tests):
   - `configs/model_config.py` + `configs/__init__.py`; `agent.py` now uses `resolve_model()`.
@@ -309,8 +313,8 @@ The package is **installed editable** into `dsagent` (`pip install -e .`, D31), 
 ## In progress
 - **M5 — Modeling.** Phase 1 (D20) ✅ + M5a (D22) ✅ + M5b (D24) ✅ + audit (D25) ✅. **Next: M5c** —
   `predict_model` (append predictions → new version) + `auto_select_model` (AutoML-lite);
-  then M5d (cross-specialist chain + churn eval + kernel eviction + docs). Plan:
-  `~/.claude/plans/i-have-commited-m4-5-enumerated-gem.md`.
+  then M5d (cross-specialist chain + churn eval + kernel eviction + docs). (The plan file once
+  referenced here, under `~/.claude/plans/`, no longer exists; `ROADMAP.md` is the plan.)
 - ~~**For M5d:** the churn eval fixture must carry **balanced, learnable signal**~~ —
   **DONE (D26).** `scripts/datagen/` scenario `churn` implements exactly the recorded recipe
   (`1.5·z(tickets) + 1.0·z(charges) − 1.8·z(tenure) + noise > 0`): **0.49 positive rate,

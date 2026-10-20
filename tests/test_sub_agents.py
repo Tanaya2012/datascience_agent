@@ -22,8 +22,8 @@ from datascience_agent.sub_agents import (
 
 
 def _tool_names(agent) -> set[str]:
-    # Only the plain function tools — toolsets (e.g. the optional Kaggle McpToolset,
-    # present only when uvx is installed) have no __name__ and are ignored here.
+    # Only the plain function tools — toolsets (e.g. a gated McpToolset from
+    # sub_agents/_mcp.py, D16) have no __name__ and are ignored here.
     return {t.__name__ for t in agent.tools if hasattr(t, "__name__")}
 
 

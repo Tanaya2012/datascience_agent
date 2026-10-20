@@ -1183,3 +1183,33 @@ recovers; `run_python` re-hydrates after a crash; the worker uses `RLIMIT_DATA`,
 **Verified:** macOS 484 passed; **Linux container 484 passed, 6 skipped, lint clean.** Caveat:
 Docker here is Linux/ARM; GitHub's runners are x86 — the limit is kernel behaviour, so it
 applies to both; the first real CI run confirms.
+
+### 2026-10-20 — D37: docs brought to M5b; a test keeps the orchestrator's routing blurbs in step with the rosters
+**Context:** audit F9 — README, CAPABILITIES, ARCHITECTURE, `.env.example`, CLAUDE.md and five
+docstrings described M4 or earlier. Re-verified before fixing: every row still held. The one with
+runtime effect was the **orchestrator's routing prompt** (`agent.py`): it picks a specialist from
+a one-line blurb, never from the specialist's tool list, and three blurbs lagged their rosters —
+Data Steward "loads local datasets" (also uploads + Kaggle), Feature-Engineering "encoding and
+scaling" (also binning + date features), Analysis "via Python" (also `explore_dataset`,
+`plot_dataset`, `statistical_test`). That steered the LLM toward `run_python` for work a
+deterministic, audited tool already covered — the opposite of the hybrid contract.
+**Decision (user-approved):**
+1. Rewrite the three blurbs by capability. **Guard:** `tests/test_agent_instructions.py` maps
+   every deterministic tool to phrase(s) its specialist's blurb must contain, and asserts the map
+   equals the live roster — so adding a tool without describing it fails. On the old prompt it
+   fails on exactly the three stale specialists. The template-collision test there had also
+   skipped `modeling_specialist`; now covered.
+2. Docs: README (six specialists; Kaggle needs only credentials, not `uv`; the "167 tests" status
+   line replaced by pointers so it can't go stale), CAPABILITIES "as of M5b" with a Modeling
+   section and an accurate "cannot do yet" (M5c, M6), ARCHITECTURE status note, `.env.example`
+   Kaggle comment, five docstrings, two stale "Kaggle McpToolset" test comments.
+3. **One default model:** `gemini-2.5-pro` in code (the evals ran on it), stated in CAPABILITIES
+   and `.env.example`. The template's `AGENT_MODEL=gemini-2.5-flash` is now *commented out* as an
+   optional cheaper override — left active it silently made the "default" flash for anyone who
+   copied the template. Existing `.env` files are unaffected.
+4. Dead `~/.claude/plans/` pointers: removed from CLAUDE.md; marked "no longer exists" in STATUS
+   (history, kept). CLAUDE.md (local, gitignored) lost its 190-line legacy section — replaced by
+   pointers to the docs that own each topic plus a short list of conventions re-verified in code
+   (its artifact-key format was already wrong since D8).
+**Deferred:** trimming STATUS.md to current state is F20's subject.
+**Verified:** 492 passed, 6 skipped (484 + 8 new); lint clean.

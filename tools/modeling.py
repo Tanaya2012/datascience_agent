@@ -18,7 +18,7 @@ artifact — so both tools are read-only transforms of the data (rows unchanged)
 mean-imputer so missing values don't crash training (mirrors `scale_features`'s
 robustness guard); the `run_python` escape hatch covers anything outside the catalog.
 
-`predict_model`/`auto_select_model` arrive in M5c.
+`predict_model`/`auto_select_model` are planned for M5c.
 """
 
 from __future__ import annotations

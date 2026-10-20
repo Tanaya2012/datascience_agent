@@ -12,8 +12,8 @@ explores, transforms, analyzes, models, and reports — keeping a full audit tra
   data mutation — tool or generated code — is checkpointed as a versioned Parquet
   artifact plus a transformation log.
 - **Multi-agent:** a model-agnostic orchestrator routes to focused specialists
-  via `AgentTool` — Data Steward, Cleaning, Analysis/EDA, Feature-Engineering, and
-  Reporting today (a Modeling specialist lands in M5).
+  via `AgentTool` — Data Steward, Cleaning, Analysis/EDA, Feature-Engineering,
+  Modeling, and Reporting. `CAPABILITIES.md` lists what each can do.
 - **Model-agnostic:** orchestrator model resolved from env via ADK + LiteLLM
   (Gemini / Claude / OpenAI / local). See `configs/model_config.py`.
 
@@ -55,9 +55,10 @@ Optional extras:
   to `adk web`/`adk run` (note the async-SQLite driver). Persisting the session without the
   artifact store resumes state that points at datasets the in-memory store already dropped.
   The `chat.py` REPL persists both by default.
-- **Kaggle datasets:** install `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`,
-  ensure `~/.local/bin` is on PATH) and add `~/.kaggle/kaggle.json`; the Data Steward then
-  exposes Kaggle search/download. Without these it simply omits those tools.
+- **Kaggle datasets:** add `~/.kaggle/kaggle.json` (kaggle.com → Settings → API → Create
+  New Token) or set `KAGGLE_USERNAME` / `KAGGLE_KEY`. The Data Steward's Kaggle search and
+  download tools use the official `kaggle` library; without credentials they return a
+  "credentials not found" message and the rest of the agent is unaffected.
 - **LLM eval suite:** `conda run -n dsagent pip install -e ".[eval]"` once, then
   `RUN_LLM_EVALS=1 conda run -n dsagent python -m pytest -m llm` (uses quota).
 - **Dependencies** are declared in `pyproject.toml` (ranges; the ADK line is held to 2.1.x)
@@ -77,8 +78,10 @@ conda run -n dsagent python -m datascience_agent.scripts.generate_dummy_data --s
 
 ## Status
 
-Legacy cleaning core (8 tools + 167 tests) is complete and reused as the
-deterministic layer. Capability expansion is tracked in `.context/ROADMAP.md`.
+Milestones M0–M5b are done: loading, cleaning, EDA, visualization, feature
+engineering, statistics, and model training/evaluation. Next is M5c (prediction and
+model auto-selection). Current state is in `.context/STATUS.md`, milestones in
+`.context/ROADMAP.md`, and what you can try today in `CAPABILITIES.md`.
 
 ## License
 

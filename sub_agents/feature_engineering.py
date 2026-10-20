@@ -1,8 +1,7 @@
 """
 Feature-Engineering specialist (M4) — transforms columns into model-ready features.
 
-Owns the mutating feature-engineering tools (encode/scale today; bin + datetime in
-M4b). Each transform checkpoints a new audited dataset version. Statistical tests
+Owns the mutating feature-engineering tools (encode, scale, bin, datetime features). Each transform checkpoints a new audited dataset version. Statistical tests
 live on the Analysis specialist, not here — this specialist only transforms data.
 `run_python` is shared for the long tail.
 """

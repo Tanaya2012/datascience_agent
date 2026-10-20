@@ -156,6 +156,9 @@ adversarial pass before modeling chains more mutations together.
       (idle-TTL in the `run_python` registry) + docs; close M5.
       *(The learnable-signal fixture this blocked on is **done** — D26's `churn` scenario:
       0.49 positive rate, 0.87 CV accuracy, `tenure_months` top importance.)*
+      *(Docs were brought up to M5b by **D37** (audit F9); M5d's "docs" step now only adds
+      M5c/M5d. A new tool must also be described in `agent.py`'s routing blurb — a test
+      enforces it.)*
 
 ## ✅ Test-data corpus — Phase A  *(COMPLETE — D26; 461 passed, 6 skipped)*
 Out-of-milestone. Rationale: the repo had **no dataset with planted, learnable signal** —

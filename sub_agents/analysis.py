@@ -1,11 +1,10 @@
 """
 Analysis specialist — exploratory analysis via the code-execution escape hatch.
 
-Today this owns `run_python` (the M1 kernel) plus `profile_dataset` for richer
-EDA. It covers everything the deterministic cleaning tools don't: derived
-columns, filtering, group-by/pivot, correlations, custom stats, and matplotlib
-plots. First-class EDA/visualization helpers arrive in M3; for now `run_python`
-is the workhorse.
+Owns the deterministic analysis tools — `profile_dataset`, `explore_dataset`
+(correlations, distribution shape, target relationships), `plot_dataset` (standard
+charts) and `statistical_test` — plus `run_python` for the long tail: derived columns,
+filtering, group-by/pivot, custom stats, and non-standard plots.
 """
 
 from __future__ import annotations

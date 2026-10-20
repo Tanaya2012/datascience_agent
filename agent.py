@@ -1,9 +1,10 @@
 """
-Root orchestrator agent for the data-science pipeline (M2).
+Root orchestrator agent for the data-science pipeline.
 
 The orchestrator is a model-agnostic ``LlmAgent`` that converses with the user,
-plans in prose, and **routes** work to focused specialist sub-agents (Data
-Steward, Cleaning, Analysis, Reporting) exposed as ``AgentTool``s. It retains
+plans in prose, and **routes** work to six focused specialist sub-agents (Data
+Steward, Cleaning, Analysis, Feature-Engineering, Modeling, Reporting) exposed as
+``AgentTool``s. It retains
 control between delegations and reflects on each specialist's result.
 
 Specialists share the same session — so session state, the artifact/audit layer,
@@ -36,16 +37,21 @@ tools yourself — you route to a specialist and reflect on what it returns.
 
 ## Your specialists (call them as tools)
 
-- **data_steward** — loads local datasets and profiles them (shape, types,
-  missingness, anomalies). Start here to bring data in and survey it.
+- **data_steward** — brings data in: loads local CSV/Excel/Parquet files, ingests
+  files the user uploads in the UI, searches and downloads Kaggle datasets, and
+  profiles the result (shape, types, missingness, anomalies). Start here to bring
+  data in and survey it.
 - **cleaning_specialist** — deterministic cleaning + validation: missing values,
   format standardization, deduplication, merge, and a 0–100 quality score.
-- **analysis_specialist** — exploratory analysis and Q&A via Python: correlations,
-  group-by/pivot, distributions, custom stats, and plots. Use for anything the
-  cleaning tools don't cover, and for "what/why" questions about the data.
+- **analysis_specialist** — exploratory analysis and Q&A. Has deterministic tools for
+  EDA (correlations, distribution shape, which features relate to a target), standard
+  charts (histogram, bar, scatter, box, heatmap, line) and statistical tests (t-test,
+  ANOVA, chi-square, correlation significance), plus Python for group-by/pivot, custom
+  stats, and anything else. Use for "what/why" questions about the data.
 - **feature_engineering_specialist** — transforms columns into model-ready
-  features: encoding (one-hot/label/target) and scaling (standard/minmax/robust).
-  Use to prepare data for modeling.
+  features: encoding (one-hot/label/target), scaling (standard/minmax/robust),
+  binning numeric columns into ranges, and extracting date parts (year, month,
+  weekday, …) from datetime columns. Use to prepare data for modeling.
 - **modeling_specialist** — trains and evaluates predictive models (classification /
   regression / clustering) with scikit-learn, including cross-validation and feature
   importance, registering fitted models in shared state. Use for "train / predict /

@@ -1,7 +1,7 @@
 """
-Tests for the orchestrator agent topology (M2).
+Tests for the orchestrator agent topology.
 
-The root agent is now a coordinator that delegates to four specialist sub-agents
+The root agent is a coordinator that delegates to six specialist sub-agents
 via ``AgentTool`` — it holds no data tools directly. These tests verify the
 topology without starting any LLM or MCP server.
 """
@@ -13,12 +13,12 @@ from google.adk.tools.agent_tool import AgentTool
 
 
 def _function_tool_names(agent) -> set:
-    # Only plain function tools; toolsets (optional Kaggle McpToolset) are excluded.
+    # Only plain function tools; toolsets (a gated McpToolset, D16) are excluded.
     return {t.__name__ for t in agent.tools if hasattr(t, "__name__")}
 
 
 class TestOrchestratorTopology:
-    """root_agent wraps exactly the four specialists as AgentTools."""
+    """root_agent wraps exactly the six specialists as AgentTools."""
 
     def test_root_agent_name_unchanged(self):
         from datascience_agent.agent import root_agent

@@ -1,10 +1,10 @@
 """
 dataset_loader tool — Task #1 in the cleaning pipeline.
 
-Loads a CSV or Excel file from local disk, serializes it to Parquet,
+Loads a CSV, Excel, or Parquet file from local disk, serializes it to Parquet,
 saves it as an ADK / local artifact, and registers the artifact in
-AgentSessionState.  For Kaggle datasets, use the `download_kaggle_dataset`
-MCP tool first, then pass the downloaded file path here.
+AgentSessionState.  For Kaggle datasets, call `download_kaggle`
+(`tools/kaggle_tool.py`) first, then pass one of its returned file paths here.
 """
 
 from __future__ import annotations
