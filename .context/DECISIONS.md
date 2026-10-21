@@ -1213,3 +1213,18 @@ deterministic, audited tool already covered — the opposite of the hybrid contr
    (its artifact-key format was already wrong since D8).
 **Deferred:** trimming STATUS.md to current state is F20's subject.
 **Verified:** 492 passed, 6 skipped (484 + 8 new); lint clean.
+
+### 2026-10-21 — D38: milestones are git tags; `initial_version` kept
+**Context:** audit F11. Re-verified: the "2 unpushed commits" and "STATUS 4 weeks stale" parts were
+moot (pushed 2026-10-20; STATUS updated every session). Still true: **no tags**, so "M5b" was a
+doc label, not a ref anyone could check out or diff against.
+**Decision (user-approved):** annotated tags on the commit where `ROADMAP.md` *first* marked each
+milestone complete — found mechanically by scanning ROADMAP's history, not by guessing from commit
+messages: `m0` 3eedb6c · `m1` e956af0 · `m2` 3641c00 · `m3` e2bfd4b · `m4` e7ed1c9 · `m5a` 80bb1b9 ·
+`m5b` 5fac2b9 · `corpus-phase-a` 1ee61cf. All verified ancestors of `main`. M4.5 is untagged
+(still open). Future milestones are tagged the same way (rule in ROADMAP's header). Pushing the
+tags is the user's step.
+**`initial_version` branch — kept, contrary to the audit's "dead commit":** it is local-only (never
+pushed), one commit 66194b8 (2026-03-01), and 16 of its 17 file blobs appear nowhere in `main`'s
+history — superseded early drafts, but the only copy. Costs nothing to keep; deleting is the user's
+call.

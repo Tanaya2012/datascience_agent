@@ -54,10 +54,13 @@ reporting dead workers as crashes instead of 30 s timeouts.
 **F9 done (D37, uncommitted):** docs brought to M5b; the orchestrator's routing blurbs now
 describe every deterministic tool (three lagged, nudging the LLM to `run_python`), with a test
 tying blurbs to rosters; one default model (`gemini-2.5-pro`). **492 passed, 6 skipped.**
+**F11 done (D38):** annotated milestone tags `m0`…`m5b` + `corpus-phase-a`, created locally —
+**not pushed** (`git push origin --tags`, user's call; public once pushed). `initial_version`
+branch left as is (local-only; holds the only copy of 16 early-draft files).
 **Awaiting the user:** deletions — (a) `outputs/`: 93 of 100 run dirs match conftest fixtures (test litter),
 7 don't (likely real/smoke runs) — keep those for review; (b) `/Users/tushar/interests/artifacts/`
 — 5 stray May–June artifacts.
-Remaining audit items: F11–F20 (F17 folded into the ADK upgrade spike). Type
+Remaining audit items: F12–F20 (F17 folded into the ADK upgrade spike). Type
 checking deferred (D34).
 **Branch:** main
 

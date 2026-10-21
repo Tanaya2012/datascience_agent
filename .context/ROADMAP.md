@@ -6,6 +6,10 @@
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
+**Tags (D38):** each closed milestone has an annotated git tag (`m0`…`m5b`, `corpus-phase-a`)
+on the commit that first marked it done here. When a milestone closes, tag that commit
+(`git tag -a m5c <sha> -m "M5c — … (Dnn)"`). M4.5 is untagged — still open (manual web pass).
+
 ---
 
 ## ✅ M0 — Foundation & honesty  *(COMPLETE — 192 tests green)*
